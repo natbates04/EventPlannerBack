@@ -341,7 +341,6 @@ router.post('/auto-sign-in', (req, res) => {
   });
 });
 
-
 router.post("/update-last-opened", async (req, res) => {
   const { user_id, path, timestamp } = req.body;
 
@@ -428,6 +427,103 @@ router.post("/fetch-last-opened", async (req, res) => {
   }
 });
 
+router.post("/update-user", async (req, res) => {
+  const { user_id, name, email, event_id } = req.body;
+
+  if (!user_id || !name || !email || !event_id) {
+    return res.status(400).json({ message: "Missing required fields (user_id, name, email, event_id)" });
+  }
+
+  try {
+    // 1. Get user to be updated
+    const [userResult] = await db.promise().execute(
+      "SELECT * FROM user_details WHERE user_id = ?",
+      [user_id]
+    );
+
+    if (userResult.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // 2. Get event details
+    const [eventRows] = await db.promise().execute(
+      "SELECT organiser_id, attendees FROM event_details WHERE event_id = ?",
+      [event_id]
+    );
+
+    if (eventRows.length === 0) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    const event = eventRows[0];
+    const organiserId = event.organiser_id;
+    const attendees = typeof event.attendees === "string"
+      ? JSON.parse(event.attendees)
+      : event.attendees || [];
+
+    // 3. Check if organiser (not the same user) has this email
+    if (organiserId !== user_id) {
+      const [organiserRows] = await db.promise().execute(
+        "SELECT email FROM user_details WHERE user_id = ?",
+        [organiserId]
+      );
+
+      if (organiserRows.length && organiserRows[0].email === email) {
+        return res.status(409).json({ message: "Email is already used." });
+      }
+    }
+
+    // 4. Check if any other attendee (excluding self) has this email
+    const filteredAttendees = attendees.filter(id => id !== user_id);
+    if (filteredAttendees.length > 0) {
+      const [attendeeRows] = await db.promise().execute(
+        "SELECT email FROM user_details WHERE user_id IN (?)",
+        [filteredAttendees]
+      );
+
+      const duplicate = attendeeRows.find(att => att.email === email);
+      if (duplicate) {
+        return res.status(409).json({ message: "Email is already used." });
+      }
+    }
+
+    // 5. All clear — update the user
+    await db.promise().execute(
+      "UPDATE user_details SET username = ?, email = ? WHERE user_id = ?",
+      [name, email, user_id]
+    );
+
+    res.status(200).json({ message: "User updated successfully." });
+
+  } catch (error) {
+    console.error("Error updating user:", error);
+    res.status(500).json({ message: "Server error while updating user." });
+  }
+});
+
+router.get("/fetch-username", async (req, res) => {
+  const { user_id } = req.query;
+
+  if (!user_id) {
+    return res.status(400).json({ message: "User ID is required" });
+  }
+
+  try {
+    const [rows] = await db.promise().execute(
+      "SELECT username FROM user_details WHERE user_id = ?",
+      [user_id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ name: rows[0].username });
+  } catch (error) {
+    console.error("Error fetching user name:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 module.exports = router;
 
