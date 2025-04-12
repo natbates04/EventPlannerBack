@@ -5,13 +5,21 @@ const { v4: uuidv4 } = require('uuid');  // Importing uuid
 const sendEmail = require("../services/emailService");
 
 router.post("/create-user", async (req, res) => {
-    const { email, name, fingerprint, role, event_id } = req.body;
+    const { email, name, fingerprint, role, event_id, profileNum} = req.body;
+
+    const missingFields = [];
+    if (!email) missingFields.push("email");
+    if (!name) missingFields.push("name");
+    if (!fingerprint) missingFields.push("fingerprint");
+    if (profileNum === undefined || profileNum === null) missingFields.push("profileNum"); // Allow 0 if that's valid
   
-    // Check for required fields
-    if (!email || !name || !fingerprint) {
-      console.log("MISSING FIELDS");
-      return res.status(400).json({ message: "Missing required fields" });
+    if (missingFields.length > 0) {
+      console.log("MISSING FIELDS:", missingFields.join(", "));
+      return res.status(400).json({ message: "Missing required fields", missing: missingFields });
     }
+
+
+    console.log("creaint user profile pic num " + profileNum);
   
     // Validate and set the role (allowed: 'organiser', 'admin', 'attendee')
     const validRoles = ["organiser", "admin", "attendee"];
@@ -25,8 +33,8 @@ router.post("/create-user", async (req, res) => {
   
       // Insert the new user into the database
       await db.execute(
-        "INSERT INTO user_details (user_id, email, username, fingerprint, role) VALUES (?, ?, ?, ?, ?)",
-        [newUserId, email, name, fingerprint, userRole]
+        "INSERT INTO user_details (user_id, email, username, fingerprint, role, profile_pic) VALUES (?, ?, ?, ?, ?, ?)",
+        [newUserId, email, name, fingerprint, userRole, profileNum]
       );
   
       console.log("New user ID: ", newUserId);
@@ -181,6 +189,7 @@ router.post("/login", async (req, res) => {
                           email: user.email,
                           username: user.username,
                           role: user.role,
+                          profile_pic: user.profile_pic,
                         },
                       });
                     }
@@ -208,6 +217,7 @@ router.post("/login", async (req, res) => {
                           email: user.email,
                           username: user.username,
                           role: user.role,
+                          profile_pic: user.profile_pic,
                         },
                       });
                     }
@@ -428,11 +438,15 @@ router.post("/fetch-last-opened", async (req, res) => {
 });
 
 router.post("/update-user", async (req, res) => {
-  const { user_id, name, email, event_id } = req.body;
+  const { user_id, name, email, event_id, profile_pic } = req.body;
 
-  if (!user_id || !name || !email || !event_id) {
-    return res.status(400).json({ message: "Missing required fields (user_id, name, email, event_id)" });
+  console.log("Update user request:", req.body);
+
+  if (!user_id || !name || !email || !event_id || profile_pic === null) {
+    return res.status(400).json({ message: "Missing required fields (user_id, name, email, event_id, profile_pic)" });
   }
+
+  console.log("NOT 0 : ", !profile_pic);
 
   try {
     // 1. Get user to be updated
@@ -489,8 +503,8 @@ router.post("/update-user", async (req, res) => {
 
     // 5. All clear — update the user
     await db.promise().execute(
-      "UPDATE user_details SET username = ?, email = ? WHERE user_id = ?",
-      [name, email, user_id]
+      "UPDATE user_details SET username = ?, email = ?, profile_pic = ? WHERE user_id = ?",
+      [name, email, profile_pic, user_id]
     );
 
     res.status(200).json({ message: "User updated successfully." });
@@ -510,7 +524,7 @@ router.get("/fetch-username", async (req, res) => {
 
   try {
     const [rows] = await db.promise().execute(
-      "SELECT username FROM user_details WHERE user_id = ?",
+      "SELECT username, profile_pic FROM user_details WHERE user_id = ?",
       [user_id]
     );
 
@@ -518,7 +532,7 @@ router.get("/fetch-username", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json({ name: rows[0].username });
+    res.status(200).json({ name: rows[0].username, profile_pic: rows[0].profile_pic });
   } catch (error) {
     console.error("Error fetching user name:", error);
     res.status(500).json({ message: "Server error" });

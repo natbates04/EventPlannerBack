@@ -24,7 +24,7 @@ router.get("/fetch-event/:event_id", async (req, res) => {
 
   console.log("Fetching event: " + event_id);
 
-  db.execute("SELECT title, description, status, chosen_dates, cancellation_reason FROM event_details WHERE event_id = ?", [event_id], (err, rows) => {
+  db.execute("SELECT title, description, status, chosen_dates, cancellation_reason, location FROM event_details WHERE event_id = ?", [event_id], (err, rows) => {
       if (err) {
           console.error("Error fetching event:", err);
           return res.status(500).json({ message: "Server error" });
@@ -151,6 +151,8 @@ router.post("/update-event", async (req, res) => {
     duration,
   } = req.body;
 
+  console.log("Latest event date: ", latest_date);
+
   // Validate the required fields
   if (!event_id || !title || !description || !earliest_date || !latest_date || !duration) {
     console.log("🔹 Debugging Missing Fields:");
@@ -203,9 +205,9 @@ router.post("/update-event", async (req, res) => {
 });
 
 router.post("/confirm-event", async (req, res) => {
-  const { event_id, reminderDate, selectedDates } = req.body;
+  const { event_id, reminder_date, selectedDates } = req.body;
 
-  if (!event_id || !reminderDate || !Array.isArray(selectedDates) || selectedDates.length === 0) {
+  if (!event_id || !reminder_date || !Array.isArray(selectedDates) || selectedDates.length === 0) {
       return res.status(400).json({ message: "event_id, reminder_date, and selectedDates are required" });
   }
 
@@ -217,7 +219,7 @@ router.post("/confirm-event", async (req, res) => {
 
   try {
       const [result] = await db.promise().execute(updateQuery, [
-        reminderDate,
+        reminder_date,
           JSON.stringify(selectedDates), // Store selectedDates as JSON
           event_id
       ]);
@@ -226,7 +228,7 @@ router.post("/confirm-event", async (req, res) => {
           return res.status(404).json({ message: "Event not found" });
       }
 
-      console.log(`Event ${event_id} confirmed successfully with reminder on ${reminderDate}`);
+      console.log(`Event ${event_id} confirmed successfully with reminder on ${reminder_date}`);
 
       // Fetch attendees' emails
       const [eventRows] = await db.promise().execute(
@@ -511,5 +513,31 @@ router.post("/migrate-event", async (req, res) => {
       return res.status(500).json({ message: "Error migrating event" });
   }
 });
+
+router.get("/fetch-event-status", (req, res) => {
+  const event_id = req.query.event_id;
+
+  if (!event_id) {
+    return res.status(400).json({ error: "Missing event_id" });
+  }
+
+  const query = "SELECT status FROM event_details WHERE event_id = ?";
+
+  db.execute(query, [event_id], (err, results) => {
+    if (err) {
+      console.error("Error fetching event status:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const { status } = results[0];
+    return res.status(200).json({ status });
+  });
+});
+
+
 
 module.exports = router;

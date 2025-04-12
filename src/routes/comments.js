@@ -35,14 +35,13 @@ router.get('/fetch-comments', async (req, res) => {
 });
 
 router.post('/add-comment', async (req, res) => {
-    const { event_id, user_id, username, message, reply_to } = req.body;
+    const { event_id, user_id, username, message, reply_to, profile_pic } = req.body;
   
     // Validate that all necessary fields are provided
-    if (!event_id || !user_id || !username || !message) {
+    if (!event_id || !user_id  || !message) {
       console.log("missing fields");
       console.log(event_id);
       console.log(user_id);
-      console.log(username);
       console.log(message);
       return res.status(400).json({ message: 'Missing required fields' });
     }
@@ -50,7 +49,6 @@ router.post('/add-comment', async (req, res) => {
     // Prepare the comment object
     const comment = {
       user_id,
-      username,
       message,
       reply_to: reply_to || null, // Null if no reply
       uuid: uuidv4(), // Assuming you have a function to generate a UUID for each comment

@@ -31,10 +31,10 @@ router.get("/fetch-links", async (req, res) => {
 });
 
 router.post("/add-link", async (req, res) => {
-    const { link, added_by_name, added_by, event_id } = req.body;
+    const { link, added_by, event_id} = req.body;
   
     // Validate required fields
-    if (!link || !added_by_name || !event_id) {
+    if (!link || !added_by || !event_id) {
       return res.status(400).json({ message: "Link, name, and event_id are required" });
     }
   
@@ -58,7 +58,6 @@ router.post("/add-link", async (req, res) => {
       // Create a new link object
       const newLinkObject = {
         link,
-        added_by_name,
         added_by,
         created_at: new Date().toISOString(),
       };
@@ -79,7 +78,7 @@ router.post("/add-link", async (req, res) => {
     }
 });
   
-router.post("/delete-link", async (req, res) => {
+router.delete("/delete-link", async (req, res) => {
     const { link, event_id } = req.body;
   
     // Validate required fields

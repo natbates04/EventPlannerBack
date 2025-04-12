@@ -25,7 +25,7 @@ router.get("/fetch-to-do", async (req, res) => {
 });
 
 router.post("/add-to-do", async (req, res) => {
-    const { event_id, creator_id, task } = req.body;
+    const { event_id, creator_id, task} = req.body;
 
     // Validate required fields
     if (!event_id || !creator_id || !task) {
@@ -47,7 +47,7 @@ router.post("/add-to-do", async (req, res) => {
             task_id: uuidv4(),
             creator_id,
             task,
-            created_at: new Date().toISOString().split("T")[0]
+            created_at: new Date().toISOString().split("T")[0],
         };
 
         // Add the new task to the to_do list
@@ -74,6 +74,8 @@ router.post("/move-to-done", async (req, res) => {
         return res.status(400).json({ message: "Event ID and Task ID are required" });
     }
 
+    console.log("MOVING TO DONE FOR EVENT ID:", event_id, "AND TASK ID:", task_id);
+
     try {
         const [rows] = await db.promise().execute(
             "SELECT to_do FROM event_details WHERE event_id = ?",
@@ -85,7 +87,9 @@ router.post("/move-to-done", async (req, res) => {
         const toDoList = rows.length ? rows[0].to_do : { to_do: [], done: [] };
 
         const taskIndex = toDoList.to_do.findIndex(task => task.task_id === task_id);
-        if (taskIndex === -1) return res.status(404).json({ message: "Task not found" });
+        if (taskIndex === -1){
+            return res.status(404).json({ message: "Task not found" })
+        };
 
         const completedTask = toDoList.to_do.splice(taskIndex, 1)[0];
         toDoList.done.push(completedTask);
@@ -101,6 +105,7 @@ router.post("/move-to-done", async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
+
 
 router.post("/move-to-do", async (req, res) => {
     const { event_id, task_id } = req.body;

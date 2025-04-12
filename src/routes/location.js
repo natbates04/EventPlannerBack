@@ -28,5 +28,59 @@ router.get("/fetch-location", async (req, res) => {
     }
 });
 
+router.put("/update-location", async (req, res) => {
+    const { event_id, address, city, postcode, country, lat, lon } = req.body;
+
+    console.log("Received update location request:", req.body);
+
+    if (!event_id || !lat || !lon) {
+        return res.status(400).json({ message: "Missing required fields." });
+    }
+
+    // Create a location object to update the location field
+    const locationObject = {
+        address: address || "",
+        city: city || "",
+        postcode: postcode || "",
+        country: country || "",
+        lat,
+        lon,
+    };
+
+    try {
+        // Create a location object
+        const locationObject = JSON.stringify({
+            address: address || "",
+            city: city || "",
+            postcode: postcode || "",
+            country: country || "",
+            lat,
+            lon,
+        });
+    
+        // Execute the query and log the result
+        const result = await db.execute(
+            `
+            UPDATE event_details
+            SET location = ?
+            WHERE event_id = ?
+            `,
+            [locationObject, event_id]
+        );
+    
+        console.log("Database query result:", result);
+    
+        // Check the result
+        if (result[0]?.affectedRows === 0) {
+            return res.status(404).json({ message: "Event not found." });
+        }
+    
+        return res.status(200).json({ message: "Location updated successfully." });
+    } catch (err) {
+        console.error("Error updating location:", err);
+        return res.status(500).json({ message: "Internal server error." });
+    }
+    
+});
 
 module.exports = router;

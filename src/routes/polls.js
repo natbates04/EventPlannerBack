@@ -33,7 +33,7 @@ router.get("/fetch-polls", async (req, res) => {
 router.post("/create-poll", async (req, res) => {
     const { event_id, poll_id, title, description, options, user_id, name, priority } = req.body;
 
-    if (!event_id || !poll_id || !title || !description || !options || !Array.isArray(options) || !user_id || !name || !priority) {
+    if (!event_id || !poll_id || !title || !description || !options || !Array.isArray(options) || !user_id || !priority) {
         return res.status(400).json({ message: "Invalid request parameters" });
     }
 
@@ -64,7 +64,6 @@ router.post("/create-poll", async (req, res) => {
         title,
         description,
         created_by: user_id,   // User ID of creator
-        creator_name: name,    // Name of the creator
         created_at: new Date().toISOString(),
         priority,              // Priority level (level-1, level-2, level-3)
         options: {},
@@ -195,5 +194,60 @@ router.post("/delete-poll", async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
+
+router.post("/remove-vote", async (req, res) => {
+    const { event_id, poll_id, user_id, selected_option } = req.body;
+
+    if (!event_id || !poll_id || !user_id || !selected_option) {
+        console.log("Invalid request parameters:", req.body);
+        return res.status(400).json({ message: "Invalid request parameters" });
+    }
+
+    try {
+        const [rows] = await db.promise().execute(
+            "SELECT polls FROM event_details WHERE event_id = ?",
+            [event_id]
+        );
+
+        if (rows.length === 0 || !rows[0].polls) {
+            return res.status(404).json({ message: "Poll not found" });
+        }
+
+        let polls;
+        try {
+            polls = rows[0].polls;
+        } catch (error) {
+            console.error("Error parsing polls JSON:", error);
+            return res.status(500).json({ message: "Error processing poll data" });
+        }
+
+        const poll = polls[poll_id];
+
+        if (!poll || !poll.options[selected_option]) {
+            return res.status(404).json({ message: "Poll or option not found" });
+        }
+
+        // Check if the user voted for the selected option
+        if (!poll.options[selected_option].includes(user_id)) {
+            return res.status(400).json({ message: "User has not voted for this option" });
+        }
+
+        // Remove the user from the selected option (unvote)
+        poll.options[selected_option] = poll.options[selected_option].filter(voter => voter !== user_id);
+
+        // Update poll data in the database
+        await db.promise().execute(
+            "UPDATE event_details SET polls = ? WHERE event_id = ?",
+            [JSON.stringify(polls), event_id]
+        );
+
+        res.status(200).json({ message: "Vote removed successfully", updatedPoll: poll });
+
+    } catch (error) {
+        console.error("Error removing vote:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 
 module.exports = router;

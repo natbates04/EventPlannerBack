@@ -92,7 +92,7 @@ router.get("/fetch-attendees", (req, res) => {
   
         // Build a dynamic query to fetch details from user_details for these UUIDs
         const placeholders = userIds.map(() => "?").join(", ");
-        const query = `SELECT user_id, username, role, created_at FROM user_details WHERE user_id IN (${placeholders})`;
+        const query = `SELECT user_id, username, role, created_at, profile_pic FROM user_details WHERE user_id IN (${placeholders})`;
         console.log("[fetch-attendees] Executing query:", query, "with userIds:", userIds);
   
         db.execute(query, userIds, (userErr, userRows) => {
@@ -120,11 +120,11 @@ router.get("/fetch-attendees", (req, res) => {
 
 router.post("/request-access", async (req, res) => {
 
-    const { email, username, event_id, time_requested } = req.body;
+    const { email, username, event_id, time_requested, profile_pic} = req.body;
   
-    console.log("[Request Access] Received request:", email, username, event_id, time_requested);
+    console.log("[Request Access] Received request:", email, username, event_id, time_requested, profile_pic);
   
-    if (!email || !username || !event_id || !time_requested) {
+    if (!email || !username || !event_id || !time_requested || !profile_pic) {
       console.log("[Request Access] Missing required fields.");
       return res.status(400).json({ message: "Missing required fields" });
     }
@@ -158,6 +158,7 @@ router.post("/request-access", async (req, res) => {
         email,
         time_requested,
         status: "pending",  // Set default status as 'pending'
+        profile_pic
       };
   
       requests.push(newRequest);

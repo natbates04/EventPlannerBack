@@ -75,7 +75,7 @@ router.get("/fetch-availability/:event_id", async (req, res) => {
 
       // 🔹 Step 2: Fetch user details and availability for all users
       const [userRows] = await db.promise().execute(
-          `SELECT user_id, username, role, availability FROM user_details WHERE user_id IN (${userIds.map(() => "?").join(",")})`,
+          `SELECT user_id, username, role, availability, profile_pic FROM user_details WHERE user_id IN (${userIds.map(() => "?").join(",")})`,
           userIds
       );
 
@@ -85,11 +85,12 @@ router.get("/fetch-availability/:event_id", async (req, res) => {
           attendees: []
       };
 
-      userRows.forEach(({ user_id, username, role, availability }) => {
+      userRows.forEach(({ user_id, username, role, availability, profile_pic}) => {
           const userData = {
               user_id,
               username,
-              availability: availability
+              availability: availability,
+              profile_pic
           };
 
           if (user_id === organiser_id) {
@@ -147,84 +148,80 @@ router.get("/fetch-user-availability/:user_id", (req, res) => {
 });
   
 router.post("/set-availability", (req, res) => {
-    const { user_id, date, status } = req.body;
-  
-    console.log("Received request to set availability:", req.body);
-  
-    // Validate input
-    if (!user_id || !date) {
-      return res.status(400).json({ message: "User ID and date are required" });
+  const { user_id, updates } = req.body;
+
+  console.log("Received request to set availability:", req.body);
+
+  // Validate input
+  if (!user_id || !Array.isArray(updates)) {
+    return res.status(400).json({ message: "User ID and updates array are required" });
+  }
+
+  // Fetch the current availability JSON for the user
+  const query = "SELECT availability FROM user_details WHERE user_id = ?";
+  db.execute(query, [user_id], (err, rows) => {
+    if (err) {
+      console.error("Error fetching user availability:", err);
+      return res.status(500).json({ message: "Server error" });
     }
-  
-    // Fetch the current availability JSON for the user
-    const query = "SELECT availability FROM user_details WHERE user_id = ?";
-    db.execute(query, [user_id], (err, rows) => {
-      if (err) {
-        console.error("Error fetching user availability:", err);
-        return res.status(500).json({ message: "Server error" });
-      }
-  
-      if (rows.length === 0) {
-        console.log(`User with ID ${user_id} not found`);
-        return res.status(404).json({ message: "User not found" });
-      }
-  
-      let availability = {};
-  
-      console.log("Fetched availability data:", rows[0].availability);
-  
-      // Ensure the availability data is parsed correctly
-      try {
-        const existingAvailability = rows[0].availability;
-        if (typeof existingAvailability === "string" && existingAvailability.trim() !== "") {
-          availability = JSON.parse(existingAvailability);
-        } else if (typeof existingAvailability === "object" && existingAvailability !== null) {
-          availability = existingAvailability; // Already an object, no need to parse
-        } else {
-          availability = {}; // Handle null or empty case
-        }
-      } catch (parseError) {
-        console.error("Error parsing existing availability:", parseError);
-        return res.status(500).json({ message: "Invalid availability data format" });
-      }
-  
-      // If status is null, remove the date from the availability object
-      if (status === null) {
-        if (availability[date]) {
-          console.log(`Removing availability for ${date}`);
-          delete availability[date]; // Remove the key from the object
-        } else {
-          console.log(`Date ${date} not found in availability`);
-        }
+
+    if (rows.length === 0) {
+      console.log(`User with ID ${user_id} not found`);
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    let availability = {};
+
+    console.log("Fetched availability data:", rows[0].availability);
+
+    // Ensure the availability data is parsed correctly
+    try {
+      const existingAvailability = rows[0].availability;
+      if (typeof existingAvailability === "string" && existingAvailability.trim() !== "") {
+        availability = JSON.parse(existingAvailability);
+      } else if (typeof existingAvailability === "object" && existingAvailability !== null) {
+        availability = existingAvailability; // Already an object, no need to parse
       } else {
-        // Validate status value
-        const validStatuses = ["available", "not available", "tentative"];
-        if (!validStatuses.includes(status)) {
-          return res.status(400).json({ message: "Invalid status value. Allowed values: available, not available, tentative" });
-        }
-  
-        // Update or add the availability
-        availability[date] = status;
-        console.log(`Setting availability for ${date}: ${status}`);
+        availability = {}; // Handle null or empty case
       }
-  
-      // Convert updated availability back to JSON, ensure empty object if all dates are removed
-      const updatedAvailability = Object.keys(availability).length > 0 ? JSON.stringify(availability) : "{}";
-  
-      console.log("Updated availability data:", updatedAvailability);
-  
-      // Update the availability in the database
-      const updateQuery = "UPDATE user_details SET availability = ? WHERE user_id = ?";
-      db.execute(updateQuery, [updatedAvailability, user_id], (updateErr) => {
-        if (updateErr) {
-          console.error("Error updating availability:", updateErr);
-          return res.status(500).json({ message: "Server error while updating availability" });
-        }
-  
-        console.log(`Successfully updated availability for user_id: ${user_id}`);
-        res.status(200).json({ message: "Availability updated successfully", availability });
-      });
+    } catch (parseError) {
+      console.error("Error parsing existing availability:", parseError);
+      return res.status(500).json({ message: "Invalid availability data format" });
+    }
+
+    // Process each update
+    updates.forEach(({ date, status }) => {
+      // Validate status value
+      const validStatuses = ["available", "not available", "tentative"];
+      if (status === null) {
+        // Remove date from availability if status is null
+        delete availability[date];
+      } else if (validStatuses.includes(status)) {
+        // Set or update the availability for the date
+        availability[date] = status;
+      } else {
+        // Skip invalid status values
+        console.log(`Invalid status value for date ${date}: ${status}`);
+      }
     });
+
+    // Convert updated availability back to JSON
+    const updatedAvailability = Object.keys(availability).length > 0 ? JSON.stringify(availability) : "{}";
+
+    console.log("Updated availability data:", updatedAvailability);
+
+    // Update the availability in the database
+    const updateQuery = "UPDATE user_details SET availability = ? WHERE user_id = ?";
+    db.execute(updateQuery, [updatedAvailability, user_id], (updateErr) => {
+      if (updateErr) {
+        console.error("Error updating availability:", updateErr);
+        return res.status(500).json({ message: "Server error while updating availability" });
+      }
+
+      console.log(`Successfully updated availability for user_id: ${user_id}`);
+      res.status(200).json({ message: "Availability updated successfully", availability });
+    });
+  });
 });
 
 router.post("/update-chosen-date", (req, res) => {
