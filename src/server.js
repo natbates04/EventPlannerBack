@@ -27,7 +27,11 @@ function generateToken(userId) {
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: "https://eventtripplanner.netlify.app", 
+  credentials: true // if sending cookies or auth headers
+}));
+
 app.use(express.json()); 
 
 app.use("/api/events", eventRoutes); 
