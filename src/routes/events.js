@@ -24,7 +24,7 @@ router.get("/fetch-event/:event_id", async (req, res) => {
 
   console.log("Fetching event: " + event_id);
 
-  db.execute("SELECT title, description, status, chosen_dates, cancellation_reason, location FROM event_details WHERE event_id = ?", [event_id], (err, rows) => {
+  db.execute("SELECT title, description, status, chosen_dates, cancellation_reason, location, attendees, organiser_id FROM event_details WHERE event_id = ?", [event_id], (err, rows) => {
       if (err) {
           console.error("Error fetching event:", err);
           return res.status(500).json({ message: "Server error" });
@@ -105,7 +105,7 @@ router.post("/create-event", (req, res) => {
 
       // Fetch the organiser's email
       db.execute(
-        "SELECT email FROM user_details WHERE user_id = ?",
+        "SELECT email, username FROM user_details WHERE user_id = ?",
         [organiser_id],
         (emailErr, emailResult) => {
           if (emailErr) {
@@ -122,14 +122,16 @@ router.post("/create-event", (req, res) => {
               .json({ message: "Organiser not found in user_details" });
           }
 
-          const organiserEmail = emailResult[0].email;
+          const { email: organiserEmail, username: organiserName } = emailResult[0];
           console.log("Organiser's email:", organiserEmail);
 
+          const firstName = organiserName.split(" ")[0] || organiserName;
+
           // Prepare the message
-          const emailMessage = `Hello, your event "${title}" has been created successfully with Event ID: ${event_id}.`;
+          const emailMessage = `Your event "${title}" has been created successfully with Event ID ${event_id}. You can view it by pressing the button below.`;
 
           // Call the sendEmail function
-          sendEmail(organiserEmail, "Trip Created", emailMessage);
+          sendEmail(organiserEmail, firstName, "Event Created", emailMessage, { url: `${process.env.FRONT_END_URL}/event/${event_id}`, label: "See Event" });
 
           // Respond to the client
           res
@@ -207,69 +209,105 @@ router.post("/update-event", async (req, res) => {
 router.post("/confirm-event", async (req, res) => {
   const { event_id, reminder_date, selectedDates } = req.body;
 
-  if (!event_id || !reminder_date || !Array.isArray(selectedDates) || selectedDates.length === 0) {
-      return res.status(400).json({ message: "event_id, reminder_date, and selectedDates are required" });
+  console.log("REMINDER DATE SET TO: ", reminder_date);
+
+  if (!event_id || !Array.isArray(selectedDates) || selectedDates.length === 0) {
+    return res.status(400).json({ message: "event_id and selectedDates are required" });
   }
 
   const updateQuery = `
-      UPDATE event_details 
-      SET status = 'confirmed', reminder_time = ?, chosen_dates = ?
-      WHERE event_id = ?
+    UPDATE event_details 
+    SET status = 'confirmed', reminder_time = ?, chosen_dates = ?
+    WHERE event_id = ?
   `;
 
   try {
-      const [result] = await db.promise().execute(updateQuery, [
-        reminder_date,
-          JSON.stringify(selectedDates), // Store selectedDates as JSON
-          event_id
-      ]);
+    const [updateResult] = await db.promise().execute(updateQuery, [
+      reminder_date || null,
+      JSON.stringify(selectedDates),
+      event_id,
+    ]);
 
-      if (result.affectedRows === 0) {
-          return res.status(404).json({ message: "Event not found" });
-      }
+    if (updateResult.affectedRows === 0) {
+      return res.status(404).json({ message: "Event not found" });
+    }
 
-      console.log(`Event ${event_id} confirmed successfully with reminder on ${reminder_date}`);
+    console.log(`Event ${event_id} confirmed with reminder on ${reminder_date || "none"}`);
 
-      // Fetch attendees' emails
-      const [eventRows] = await db.promise().execute(
-          "SELECT attendees FROM event_details WHERE event_id = ?",
-          [event_id]
+    // Fetch event data including organiser and attendees
+    const [eventRows] = await db.promise().execute(
+      "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
+      [event_id]
+    );
+
+    if (eventRows.length === 0) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    const { organiser_id, attendees, title } = eventRows[0];
+
+    // Fetch organiser details
+    const [organiserRows] = await db.promise().execute(
+      "SELECT email, username FROM user_details WHERE user_id = ?",
+      [organiser_id]
+    );
+
+    if (organiserRows.length > 0) {
+      const { email: organiserEmail, username } = organiserRows[0];
+      const organiserFirstName = username.split(" ")[0];
+    
+      const earliestDate = new Date(
+        selectedDates.reduce((min, date) => new Date(date) < new Date(min) ? date : min)
+      ).toLocaleDateString();
+    
+      const eventUrl = `${process.env.FRONT_END_URL}/event/${event_id}`;
+    
+      sendEmail(
+        organiserEmail,
+        organiserFirstName,
+        "Event Confirmed",
+        `Hi ${organiserFirstName}, your event "${title}" has been confirmed.\n` +
+        `Confirmed Date: ${earliestDate}\n\n`,
+        { url: eventUrl, label: "See Details" }
       );
+    }
+    
 
-      if (eventRows.length === 0) {
-          return res.status(404).json({ message: "Event not found" });
-      }
+    // Parse and notify attendees
+    let attendeeIds = attendees;
 
-      const { attendees } = eventRows[0];
-      let emailList = [];
-
-      if (attendees) {
-          const attendeeIds = attendees;
-          if (Array.isArray(attendeeIds) && attendeeIds.length > 0) {
-              const [attendeeEmails] = await db.promise().execute(
-                  `SELECT email FROM user_details WHERE user_id IN (${attendeeIds.map(() => '?').join(',')})`,
-                  attendeeIds
-              );
-              emailList.push(...attendeeEmails.map(a => a.email));
-          }
-      }
-
-      console.log("Notifying attendees:", emailList);
-
-      // Send confirmation emails to attendees
-      emailList.forEach(email => {
-          sendEmail(email, "Event Confirmed", 
-              `The event with ID ${event_id} has been confirmed.\n
-               Reminder Date: ${reminder_date}\n
-               Selected Dates: ${selectedDates.join(", ")}`
-          );
+    if (Array.isArray(attendeeIds) && attendeeIds.length > 0) {
+      const [attendeeRows] = await db.promise().execute(
+        `SELECT email, username FROM user_details WHERE user_id IN (${attendeeIds.map(() => '?').join(',')})`,
+        attendeeIds
+      );
+    
+      const earliestDate = new Date(
+        selectedDates.reduce((min, date) => new Date(date) < new Date(min) ? date : min)
+      ).toLocaleDateString();
+    
+      const eventUrl = `${process.env.FRONT_END_URL}/event/${event_id}`;
+    
+      attendeeRows.forEach(({ email, username }) => {
+        const firstName = username.split(" ")[0];
+    
+        sendEmail(
+          email,
+          firstName,
+          "Event Confirmed",
+          `Hi ${firstName}, the event "${title}" you were invited to has been confirmed.\n` +
+          `Confirmed Date: ${earliestDate}\n\n`,
+          { url: eventUrl, label: "See Details" }
+        );
       });
+    
+      console.log("Confirmation sent to attendees:", attendeeRows.map(a => a.email));
+    }
 
-      res.json({ message: "Event confirmed successfully" });
-
+    res.json({ message: "Event confirmed and notifications sent" });
   } catch (error) {
-      console.error("Error confirming event:", error);
-      res.status(500).json({ message: "Server error" });
+    console.error("Error confirming event:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -298,49 +336,69 @@ router.post("/cancel-event", (req, res) => {
 
     console.log(`Event ${event_id} cancelled successfully with reason: ${cancellation_reason}`);
 
-    // Fetch attendees' emails
     try {
+      // Fetch organiser ID, attendees, and title
       const [eventRows] = await db.promise().execute(
-        "SELECT attendees FROM event_details WHERE event_id = ?",
+        "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
         [event_id]
       );
 
       if (eventRows.length === 0) {
-        return res.status(404).json({ message: "Event not found" });
+        return res.status(404).json({ message: "Event not found after update" });
       }
 
-      const { attendees } = eventRows[0];
-      let emailList = [];
+      const { organiser_id, attendees, title } = eventRows[0];
 
-      let attendeeIds = [];
-      try {
-        // Safely parse the attendees field
-        if (attendees) {
-          attendeeIds = attendees;
-        }
-      } catch (error) {
-        console.error("Error parsing attendees JSON:", error);
-        return res.status(400).json({ message: "Invalid attendees data format" });
+      // Get organiser details
+      const [organiserRows] = await db.promise().execute(
+        "SELECT email, username FROM user_details WHERE user_id = ?",
+        [organiser_id]
+      );
+
+      let organiserEmail = "";
+      let organiserFirstName = "";
+
+      if (organiserRows.length > 0) {
+        const { email, username } = organiserRows[0];
+        organiserEmail = email;
+        organiserFirstName = username.split(" ")[0];
       }
+
+      // Send email to organiser
+      if (organiserEmail) {
+        sendEmail(
+          organiserEmail,
+          organiserFirstName,
+          "Event Cancelled",
+          `Hi ${organiserFirstName}, your event "${title}" has been cancelled. Reason: ${cancellation_reason}`
+        );
+      }
+
+      // Parse attendees array
+      let attendeeIds = attendees;
 
       if (Array.isArray(attendeeIds) && attendeeIds.length > 0) {
-        const [attendeeEmails] = await db.promise().execute(
-          `SELECT email FROM user_details WHERE user_id IN (${attendeeIds.map(() => '?').join(',')})`,
+        const [attendeeRows] = await db.promise().execute(
+          `SELECT email, username FROM user_details WHERE user_id IN (${attendeeIds.map(() => '?').join(',')})`,
           attendeeIds
         );
-        emailList.push(...attendeeEmails.map(a => a.email));
+
+        attendeeRows.forEach(({ email, username }) => {
+          const firstName = username.split(" ")[0];
+          sendEmail(
+            email,
+            firstName,
+            "Event Cancelled",
+            `Hi ${firstName}, the event "${title}" you were invited to has been cancelled. Reason: ${cancellation_reason}`
+          );
+        });
+
+        console.log("Notified attendees of cancellation:", attendeeRows.map(a => a.email));
       }
 
-      console.log("Notifying attendees of cancellation:", emailList);
-
-      // Send cancellation emails to attendees
-      emailList.forEach(email => {
-        sendEmail(email, "Event Cancelled", `The event with ID ${event_id} has been cancelled. Reason: ${cancellation_reason}`);
-      });
-
-      res.json({ message: "Event cancelled successfully" });
+      res.json({ message: "Event cancelled and notifications sent" });
     } catch (error) {
-      console.error("Error fetching attendees:", error);
+      console.error("Error fetching details during cancellation:", error);
       res.status(500).json({ message: "Server error" });
     }
   });
@@ -358,7 +416,9 @@ router.post('/reopen-event', async (req, res) => {
     SET 
       status = 'pending', 
       reminder_time = NULL,
-      chosen_dates = NULL
+      chosen_dates = NULL,
+      reminder_sent = NULL,
+      daily_reminder_sent = NULL
     WHERE event_id = ?
   `;
 
@@ -378,7 +438,6 @@ router.post('/reopen-event', async (req, res) => {
     return res.status(500).json({ message: 'Error reopening event' });
   }
 });
-
 
 router.post("/update-last-update", async (req, res) => {
   const { event_id, path, timestamp } = req.body;
@@ -469,7 +528,6 @@ router.post("/fetch-last-update", async (req, res) => {
   }
 });
 
-// Migrate event to a new unique UUID
 router.post("/migrate-event", async (req, res) => {
   const { event_id } = req.body;
 
@@ -478,21 +536,30 @@ router.post("/migrate-event", async (req, res) => {
   }
 
   try {
-      let newEventId = uuidv4(); // Generate a new UUID
-      
-      // Check if the generated UUID is unique
+      let newEventId = uuidv4();
       let isUnique = await isEventIdUnique(newEventId);
 
-      // Keep generating new UUIDs until we find a unique one
       while (!isUnique) {
           console.log(`UUID ${newEventId} already exists, generating a new one...`);
-          newEventId = uuidv4(); // Generate a new UUID
-          isUnique = await isEventIdUnique(newEventId); // Check if it's unique
+          newEventId = uuidv4();
+          isUnique = await isEventIdUnique(newEventId);
       }
 
-      // Once we have a unique UUID, update the event's ID
+      // Fetch organiser, attendees, and title
+      const [eventRows] = await db.promise().execute(
+          "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
+          [event_id]
+      );
+
+      if (eventRows.length === 0) {
+          return res.status(404).json({ message: "Event not found" });
+      }
+
+      const { organiser_id, attendees, title } = eventRows[0];
+
+      // Update event ID
       const updateQuery = "UPDATE event_details SET event_id = ? WHERE event_id = ?";
-      db.execute(updateQuery, [newEventId, event_id], (err, result) => {
+      db.execute(updateQuery, [newEventId, event_id], async (err, result) => {
           if (err) {
               console.error("Error updating event ID:", err);
               return res.status(500).json({ message: "Server error while updating event ID" });
@@ -503,8 +570,52 @@ router.post("/migrate-event", async (req, res) => {
           }
 
           console.log(`Event ID successfully migrated from ${event_id} to ${newEventId}`);
+
+          // Get organiser's email
+          const [organiserRes] = await db.promise().execute(
+              "SELECT email, username FROM user_details WHERE user_id = ?",
+              [organiser_id]
+          );
+
+          if (organiserRes.length === 0) {
+              return res.status(404).json({ message: "Organiser not found" });
+          }
+
+          const { email: organiserEmail, username: organiserName } = organiserRes[0];
+          const organiserFirstName = organiserName.split(" ")[0];
+
+          // Email message
+          const message = `Your event "${title}" has been migrated. View it using the button below.`;
+
+          // Send email to organiser
+          sendEmail(organiserEmail, organiserFirstName, "Event Migrated", message, {
+              url: `${process.env.FRONT_END_URL}/event/${newEventId}`,
+              label: "See Event",
+          });
+
+          // Handle attendee emails
+          let attendeeIds = attendees;
+
+          const attendeeMessage = `An Event you are in named: "${title}" has been migrated. View it using the button below.`;
+
+          if (Array.isArray(attendeeIds) && attendeeIds.length > 0) {
+              const placeholders = attendeeIds.map(() => "?").join(",");
+              const [attendeeRows] = await db.promise().execute(
+                  `SELECT email, username FROM user_details WHERE user_id IN (${placeholders})`,
+                  attendeeIds
+              );
+
+              attendeeRows.forEach(({ email, username }) => {
+                  const firstName = username.split(" ")[0];
+                  sendEmail(email, firstName, "Event Migrated", attendeeMessage, {
+                      url: `${process.env.FRONT_END_URL}/event/${newEventId}`,
+                      label: "See Event",
+                  });
+              });
+          }
+
           return res.status(200).json({
-              message: "Event ID successfully migrated",
+              message: "Event ID successfully migrated and emails sent to organiser and attendees",
               new_event_id: newEventId,
           });
       });
@@ -538,6 +649,92 @@ router.get("/fetch-event-status", (req, res) => {
   });
 });
 
+router.delete("/delete-event", async (req, res) => {
+  const { event_id } = req.body;
+
+  if (!event_id) {
+    return res.status(400).json({ message: "event_id is required" });
+  }
+
+  try {
+    // Get the organiser_id and attendees list before deleting
+    const [eventRows] = await db.promise().execute(
+      "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
+      [event_id]
+    );
+
+    if (eventRows.length === 0) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    const { organiser_id, attendees, title } = eventRows[0];
+
+    // Collect all user IDs to delete (organiser + attendees)
+    const userIdsToDelete = [];
+
+    if (organiser_id) {
+      userIdsToDelete.push(organiser_id);
+    }
+
+    if (Array.isArray(attendees)) {
+      userIdsToDelete.push(...attendees);
+    }
+
+
+    // Send email to organiser confirming deletion of the event
+    db.execute(
+      "SELECT email, username FROM user_details WHERE user_id = ?",
+      [organiser_id],
+      (emailErr, emailResult) => {
+        if (emailErr) {
+          console.error("Error fetching organiser's email:", emailErr);
+          return res
+            .status(500)
+            .json({ message: "Failed to fetch organiser's email" });
+        }
+
+        if (emailResult.length === 0) {
+          console.error("Organiser email not found for organiser_id:", organiser_id);
+          return res
+            .status(404)
+            .json({ message: "Organiser not found in user_details" });
+        }
+
+        const { email: organiserEmail, username: organiserName } = emailResult[0];
+        console.log("Organiser's email:", organiserEmail);
+
+        const firstName = organiserName.split(" ")[0] || organiserName;
+
+        // Prepare the message
+        const emailMessage = `Your event "${title}" has been deleted successfully.`;
+
+        // Call the sendEmail function
+        sendEmail(organiserEmail, firstName, "Event Created", emailMessage);
+    });
+
+
+    // Delete the event
+    await db.promise().execute(
+      "DELETE FROM event_details WHERE event_id = ?",
+      [event_id]
+    );
+
+    // Delete users from user_details
+    if (userIdsToDelete.length > 0) {
+      await db.promise().execute(
+        `DELETE FROM user_details WHERE user_id IN (${userIdsToDelete.map(() => "?").join(",")})`,
+        userIdsToDelete
+      );
+    }
+
+
+
+    res.status(200).json({ message: "Event and associated users deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting event:", error);
+    res.status(500).json({ message: "Server error while deleting event and users" });
+  }
+});
 
 
 module.exports = router;

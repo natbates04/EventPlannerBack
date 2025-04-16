@@ -124,8 +124,11 @@ router.post("/request-access", async (req, res) => {
   
     console.log("[Request Access] Received request:", email, username, event_id, time_requested, profile_pic);
   
-    if (!email || !username || !event_id || !time_requested || !profile_pic) {
+    if (!email || !username || !event_id || !time_requested || profile_pic === null) {
       console.log("[Request Access] Missing required fields.");
+
+      console.log("[Request Access] Request body:", req.body);
+
       return res.status(400).json({ message: "Missing required fields" });
     }
   

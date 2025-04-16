@@ -4,6 +4,69 @@ const db = require("../db");
 const { v4: uuidv4 } = require('uuid');  // Importing uuid
 const sendEmail = require("../services/emailService");
 
+function updateEventLastUpdated(event_id) {
+  // Step 1: Get the current value of deleted_warning_sent
+  db.execute(
+    "SELECT deleted_warning_sent, organiser_id, title FROM event_details WHERE event_id = ?",
+    [event_id],
+    (err, rows) => {
+      if (err) {
+        console.error("[Update Event] Failed to fetch event details:", err);
+        return;
+      }
+
+      if (rows.length === 0) {
+        console.warn(`[Update Event] Event not found for event_id: ${event_id}`);
+        return;
+      }
+
+      const { deleted_warning_sent, organiser_id, title } = rows[0];
+
+      // Step 2: Check if the deleted_warning_sent was 1
+      if (deleted_warning_sent === 1) {
+        // Step 3: Send email to organiser
+        db.execute(
+          "SELECT email, username FROM user_details WHERE user_id = ?",
+          [organiser_id],
+          async (emailErr, userRows) => {
+            if (emailErr) {
+              console.error("[Update Event] Failed to fetch organiser details:", emailErr);
+              return;
+            }
+
+            if (userRows.length === 0) {
+              console.warn(`[Update Event] Organiser not found for organiser_id: ${organiser_id}`);
+              return;
+            }
+
+            const { email, username } = userRows[0];
+            const firstName = username?.split(" ")[0] || username;
+            const emailMessage = `We wanted to let you know that your event "${title}" is no longer going to be deleted as it has been updated recently. You can continue managing your event.`; 
+
+            // Send the email
+            await sendEmail(email, firstName, "Event Will Not Be Deleted", emailMessage);
+            console.log(`[Update Event] Email sent to organiser for event "${title}".`);
+          }
+        );
+      }
+
+      // Step 4: Update event (reset deleted_warning_sent to 0 and set updated_at)
+      db.execute(
+        "UPDATE event_details SET updated_at = NOW(), deleted_warning_sent = 0 WHERE event_id = ?",
+        [event_id],
+        (updateErr) => {
+          if (updateErr) {
+            console.error("[Update Event] Failed to update last_updated and reset deleted_warning_sent for event:", updateErr);
+          } else {
+            console.log("[Update Event] Successfully updated last_updated and reset deleted_warning_sent for event:", event_id);
+          }
+        }
+      );
+    }
+  );
+};
+
+
 router.post("/create-user", async (req, res) => {
     const { email, name, fingerprint, role, event_id, profileNum} = req.body;
 
@@ -25,7 +88,31 @@ router.post("/create-user", async (req, res) => {
     const validRoles = ["organiser", "admin", "attendee"];
     const userRole = validRoles.includes(role) ? role : "attendee";
 
-    if (role == "attendee") {sendEmail(email, "Trip Joined", "You have joined event with Event ID: " + event_id)}
+    if (role === "attendee" && event_id) {
+      const firstName = name.split(" ")[0];
+    
+      // Fetch event title
+      const [eventDetails] = await db.promise().execute(
+        "SELECT title FROM event_details WHERE event_id = ?",
+        [event_id]
+      );
+    
+      if (eventDetails.length > 0) {
+        const { title } = eventDetails[0];
+        const eventUrl = `${process.env.FRONT_END_URL}/event/${event_id}`;
+    
+        sendEmail(
+          email,
+          firstName,
+          "Event Joined",
+          `Hi ${firstName},\n\nYou've successfully joined the event "${title}".\n\nClick below to view the event details.`,
+          { url: eventUrl, label: "See Event" }
+        );
+      } else {
+        console.warn(`Event not found when sending email to attendee ${email} for event_id ${event_id}`);
+      }
+    }
+    
   
     try {
       // Generate a unique user_id using uuid
@@ -66,7 +153,8 @@ router.post("/create-user", async (req, res) => {
           "UPDATE event_details SET attendees = ? WHERE event_id = ?",
           [JSON.stringify(attendees), event_id]
         );
-  
+        
+        updateEventLastUpdated(event_id);
         console.log("Successfully updated attendees for event_id:", event_id);
       }
   
@@ -181,6 +269,8 @@ router.post("/login", async (req, res) => {
                         console.error("[Login] Error updating fingerprint for organiser:", updateErr);
                         return res.status(500).json({ message: "Error updating fingerprint" });
                       }
+
+                      updateEventLastUpdated(event_id);
                       return res.status(200).json({
                         authorized: true,
                         message: "User authorized as organiser.",
@@ -209,6 +299,7 @@ router.post("/login", async (req, res) => {
                         console.error("[Login] Error updating fingerprint for attendee:", updateErr);
                         return res.status(500).json({ message: "Error updating fingerprint" });
                       }
+                      updateEventLastUpdated(event_id);
                       return res.status(200).json({
                         authorized: true,
                         message: "User authorized as attendee.",
@@ -515,6 +606,25 @@ router.post("/update-user", async (req, res) => {
   }
 });
 
+router.post("/set-is-coming", async (req, res) => {
+  const { user_id, is_coming } = req.body;
+
+  if (!user_id) {
+    return res.status(400).json({ message: "User ID is required" });
+  }
+
+  try {
+    await db.promise().execute(
+      "UPDATE user_details SET is_coming = ? WHERE user_id = ?",
+      [is_coming, user_id]
+    );
+    res.status(200).json({ message: "RSVP status updated" });
+  } catch (error) {
+    console.error("Error updating RSVP:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 router.get("/fetch-username", async (req, res) => {
   const { user_id } = req.query;
 
@@ -524,7 +634,7 @@ router.get("/fetch-username", async (req, res) => {
 
   try {
     const [rows] = await db.promise().execute(
-      "SELECT username, profile_pic FROM user_details WHERE user_id = ?",
+      "SELECT user_id, username, profile_pic, is_coming FROM user_details WHERE user_id = ?",
       [user_id]
     );
 
@@ -532,12 +642,63 @@ router.get("/fetch-username", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json({ name: rows[0].username, profile_pic: rows[0].profile_pic });
+    res.status(200).json({ user_id: rows[0].user_id, name: rows[0].username, profile_pic: rows[0].profile_pic, is_coming: rows[0].is_coming});
   } catch (error) {
     console.error("Error fetching user name:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
+
+router.post("/leave-event", async (req, res) => {
+  const { user_id, event_id } = req.body;
+
+  if (!user_id || !event_id) {
+    return res.status(400).json({ message: "Missing required fields (user_id, event_id)" });
+  }
+
+  try {
+    // 1. Fetch event details
+    const [eventRows] = await db.promise().execute(
+      "SELECT attendees FROM event_details WHERE event_id = ?",
+      [event_id]
+    );
+
+    if (eventRows.length === 0) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    let attendees = typeof eventRows[0].attendees === "string"
+      ? JSON.parse(eventRows[0].attendees)
+      : eventRows[0].attendees || [];
+
+    // 2. Check if the user is in the list
+    if (!attendees.includes(user_id)) {
+      return res.status(400).json({ message: "User is not an attendee of this event" });
+    }
+
+    // 3. Remove user from attendees array
+    attendees = attendees.filter(id => id !== user_id);
+
+    // 4. Update event_details with new attendees list
+    await db.promise().execute(
+      "UPDATE event_details SET attendees = ? WHERE event_id = ?",
+      [JSON.stringify(attendees), event_id]
+    );
+
+    // 5. Optionally, delete the user from user_details
+    await db.promise().execute(
+      "DELETE FROM user_details WHERE user_id = ?",
+      [user_id]
+    );
+
+    res.status(200).json({ message: "User successfully removed from event and deleted." });
+
+  } catch (error) {
+    console.error("Error in leave-event:", error);
+    res.status(500).json({ message: "Server error while processing leave-event" });
+  }
+});
+
 
 module.exports = router;
 

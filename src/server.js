@@ -15,9 +15,18 @@ const commentsRoutes = require("./routes/comments");
 const calenderRoutes = require("./routes/calender");
 const settingsRoutes = require("./routes/settings")
 
+require('./services/reminderEmails');
+
 dotenv.config();
 
+const crypto = require('crypto');
+
+function generateToken(userId) {
+  return crypto.createHash('sha256').update(userId + process.env.SECRET_KEY).digest('hex');
+}
+
 const app = express();
+
 app.use(cors());
 app.use(express.json()); 
 

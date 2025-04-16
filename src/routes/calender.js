@@ -26,6 +26,7 @@ router.get("/fetch-calendar", async (req, res) => {
       const eventData = rows[0];
 
       res.status(200).json({
+          event_id: event_id,
           earliest_date: eventData.earliest_date,
           latest_date: eventData.latest_date,
           duration: eventData.duration,
@@ -75,7 +76,7 @@ router.get("/fetch-availability/:event_id", async (req, res) => {
 
       // 🔹 Step 2: Fetch user details and availability for all users
       const [userRows] = await db.promise().execute(
-          `SELECT user_id, username, role, availability, profile_pic FROM user_details WHERE user_id IN (${userIds.map(() => "?").join(",")})`,
+          `SELECT user_id, username, role, availability, profile_pic, created_at FROM user_details WHERE user_id IN (${userIds.map(() => "?").join(",")})`,
           userIds
       );
 
@@ -85,12 +86,13 @@ router.get("/fetch-availability/:event_id", async (req, res) => {
           attendees: []
       };
 
-      userRows.forEach(({ user_id, username, role, availability, profile_pic}) => {
+      userRows.forEach(({ user_id, username, role, availability, profile_pic, created_at}) => {
           const userData = {
               user_id,
               username,
               availability: availability,
-              profile_pic
+              profile_pic,
+              created_at
           };
 
           if (user_id === organiser_id) {
