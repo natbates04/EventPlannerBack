@@ -109,7 +109,7 @@ router.post("/create-user", async (req, res) => {
           email,
           firstName,
           "Event Joined",
-          `Hi ${firstName},\n\nYou've successfully joined the event "${title}".\n\nClick below to view the event details.`,
+          `You've successfully joined the event "${title}".\n\nClick below to view the event details.`,
           { url: eventUrl, label: "See Event" }
         );
       } else {
