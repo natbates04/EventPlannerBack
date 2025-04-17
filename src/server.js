@@ -28,8 +28,7 @@ function generateToken(userId) {
 const app = express();
 
 app.use(cors({
-  origin: "*",
-  credentials: true,
+  origin: process.env.FRONT_END_URL || "http://localhost:3000",
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
