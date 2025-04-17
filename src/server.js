@@ -28,11 +28,15 @@ function generateToken(userId) {
 const app = express();
 
 app.use(cors({
-  origin: ["https://eventtripplanner.netlify.app", "http://localhost:3000"], // Allow frontend and local development
-  allowedHeaders: ["Content-Type", "Authorization"], // Specify allowed headers
+  origin: "https://eventtripplanner.netlify.app", // Allow only your frontend's origin
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Specify allowed HTTP methods
-  credentials: true // Allow cookies or authentication headers if needed
+  allowedHeaders: ["Content-Type", "Authorization"] // Specify allowed headers
 }));
+
+app.use((req, res, next) => {
+  console.log("Incoming request origin:", req.headers.origin);
+  next();
+});
 
 app.use(express.json()); 
 
