@@ -16,6 +16,7 @@ const calenderRoutes = require("./routes/calender");
 const settingsRoutes = require("./routes/settings")
 
 require('./services/reminderEmails');
+const authMiddleware = require('./middleware/auth');
 
 dotenv.config();
 
@@ -29,7 +30,8 @@ const app = express();
 
 app.use(cors({
   origin: "https://eventtripplanner.netlify.app", 
-  credentials: false // if sending cookies or auth headers
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 app.use(express.json()); 
