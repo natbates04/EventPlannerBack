@@ -29,7 +29,7 @@ const app = express();
 
 app.use(cors({
   origin: "https://eventtripplanner.netlify.app", 
-  credentials: true // if sending cookies or auth headers
+  credentials: false // if sending cookies or auth headers
 }));
 
 app.use(express.json()); 
