@@ -19,20 +19,15 @@ require('./services/reminderEmails');
 
 dotenv.config();
 
-const crypto = require('crypto');
-
-function generateToken(userId) {
-  return crypto.createHash('sha256').update(userId + process.env.SECRET_KEY).digest('hex');
-}
-
 const app = express();
 
 app.use(cors({
-  origin: ["https://eventtripplanner.netlify.app", "https://easytripplanner.uk"], // Allow only your frontend's origin
+  origin: ["https://eventtripplanner.netlify.app", "https://easytripplanner.uk", "localhost:3000"], // Allow only your frontend's origin
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Specify allowed HTTP methods
   allowedHeaders: ["Content-Type", "Authorization"], // Specify allowed headers
   credentials: true
 }));
+
 
 app.use((req, res, next) => {
   console.log("Incoming request origin:", req.headers.origin);

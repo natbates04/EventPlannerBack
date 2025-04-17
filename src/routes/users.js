@@ -69,6 +69,8 @@ function updateEventLastUpdated(event_id) {
   );
 };
 
+// PUBLIC API ENDPOINTS
+
 router.post("/create-user", async (req, res) => {
     const { email, name, fingerprint, role, event_id, profileNum} = req.body;
 
@@ -359,6 +361,8 @@ router.post("/login", async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 });
+
+// PRIVATE API ENDPOINTS
 
 router.post('/auto-sign-in', (req, res) => {
   const { event_id, fingerprint } = req.body;
