@@ -16,7 +16,7 @@ const calenderRoutes = require("./routes/calender");
 const settingsRoutes = require("./routes/settings")
 
 require('./services/reminderEmails');
-const authMiddleware = require('./middleware/auth');
+const authMiddleware = require('./services/middleware/auth');
 
 dotenv.config();
 
