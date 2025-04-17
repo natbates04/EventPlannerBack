@@ -3,8 +3,9 @@ const router = express.Router();
 const db = require("../db");
 const { v4: uuidv4 } = require('uuid');  // Importing uuid
 const sendEmail = require("../services/emailService");
+const authenticateToken = require("../middleware/auth"); 
 
-router.get("/fetch-calendar", async (req, res) => {
+router.get("/fetch-calendar", authenticateToken, async (req, res) => {
 
   const { event_id } = req.query;
 
@@ -38,7 +39,7 @@ router.get("/fetch-calendar", async (req, res) => {
   }
 });
 
-router.get("/fetch-availability/:event_id", async (req, res) => {
+router.get("/fetch-availability/:event_id", authenticateToken, async (req, res) => {
   const { event_id } = req.params;
 
   console.log("Received request to fetch availability for event_id:", event_id);
@@ -109,7 +110,7 @@ router.get("/fetch-availability/:event_id", async (req, res) => {
   }
 });
 
-router.get("/fetch-user-availability/:user_id", (req, res) => {
+router.get("/fetch-user-availability/:user_id", authenticateToken, (req, res) => {
     const { user_id } = req.params;
   
     console.log("Received request to fetch availability for user_id:", user_id);
@@ -149,7 +150,7 @@ router.get("/fetch-user-availability/:user_id", (req, res) => {
     });
 });
   
-router.post("/set-availability", (req, res) => {
+router.post("/set-availability", authenticateToken, (req, res) => {
   const { user_id, updates } = req.body;
 
   console.log("Received request to set availability:", req.body);
@@ -226,7 +227,7 @@ router.post("/set-availability", (req, res) => {
   });
 });
 
-router.post("/update-chosen-date", (req, res) => {
+router.post("/update-chosen-date", authenticateToken, (req, res) => {
   console.log("Received request to update chosen date");
 
   const { event_id, chosen_date } = req.body;
@@ -298,7 +299,7 @@ router.post("/update-chosen-date", (req, res) => {
   });
 });
 
-router.post("/clear-availability", (req, res) => {
+router.post("/clear-availability", authenticateToken, (req, res) => {
   const { user_id } = req.body;
 
   console.log("Received request to clear availability for user:", user_id);

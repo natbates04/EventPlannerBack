@@ -3,8 +3,9 @@ const router = express.Router();
 const db = require("../db");
 const { v4: uuidv4 } = require('uuid');  // Importing uuid
 const sendEmail = require("../services/emailService");
+const authenticateToken = require("../middleware/auth"); 
 
-router.get('/fetch-comments', async (req, res) => {
+router.get('/fetch-comments', authenticateToken, async (req, res) => {
     const { event_id } = req.query;  // Retrieving event_id from query parameters
 
     if (!event_id) {
@@ -34,7 +35,7 @@ router.get('/fetch-comments', async (req, res) => {
     }
 });
 
-router.post('/add-comment', async (req, res) => {
+router.post('/add-comment', authenticateToken, async (req, res) => {
     const { event_id, user_id, username, message, reply_to, profile_pic } = req.body;
   
     // Validate that all necessary fields are provided
@@ -86,7 +87,7 @@ router.post('/add-comment', async (req, res) => {
     }
 });
   
-router.post("/delete-comment", async (req, res) => {
+router.post("/delete-comment", authenticateToken, async (req, res) => {
     const { event_id, commentIds } = req.body;
     console.log("Received delete request for event_id:", event_id);
     console.log("Comments to delete:", commentIds);

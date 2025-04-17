@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require("../db");
 const { v4: uuidv4 } = require("uuid");
 const sendEmail = require("../services/emailService");
+const authenticateToken = require("../middleware/auth"); 
 
 const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
@@ -19,12 +20,14 @@ const isEventIdUnique = (newEventId) => {
   });
 };
 
-router.get("/fetch-event/:event_id", async (req, res) => {
+// PUBLIC API ENDPOINTS
+
+router.get("/fetch-event-title/:event_id", async (req, res) => {
   const { event_id } = req.params; // Get event_id from the URL path
 
   console.log("Fetching event: " + event_id);
 
-  db.execute("SELECT title, description, status, chosen_dates, cancellation_reason, location, attendees, organiser_id FROM event_details WHERE event_id = ?", [event_id], (err, rows) => {
+  db.execute("SELECT title FROM event_details WHERE event_id = ?", [event_id], (err, rows) => {
       if (err) {
           console.error("Error fetching event:", err);
           return res.status(500).json({ message: "Server error" });
@@ -143,7 +146,29 @@ router.post("/create-event", (req, res) => {
   );
 });
 
-router.post("/update-event", async (req, res) => {
+
+// PRIVATE API ENDPOINTS
+
+router.get("/fetch-event/:event_id", authenticateToken, async (req, res) => {
+  const { event_id } = req.params; // Get event_id from the URL path
+
+  console.log("Fetching event: " + event_id);
+
+  db.execute("SELECT title, description, status, chosen_dates, cancellation_reason, location, attendees, organiser_id FROM event_details WHERE event_id = ?", [event_id], (err, rows) => {
+      if (err) {
+          console.error("Error fetching event:", err);
+          return res.status(500).json({ message: "Server error" });
+      }
+
+      if (rows.length === 0) {
+          return res.status(404).json({ message: "Event not found" });
+      }
+
+      res.json(rows[0]); // Return the event details
+  });
+});
+
+router.post("/update-event", authenticateToken, async (req, res) => {
   const {
     event_id,
     title,
@@ -206,7 +231,7 @@ router.post("/update-event", async (req, res) => {
   }
 });
 
-router.post("/confirm-event", async (req, res) => {
+router.post("/confirm-event", authenticateToken, async (req, res) => {
   const { event_id, reminder_date, selectedDates } = req.body;
 
   console.log("REMINDER DATE SET TO: ", reminder_date);
@@ -311,7 +336,7 @@ router.post("/confirm-event", async (req, res) => {
   }
 });
 
-router.post("/cancel-event", (req, res) => {
+router.post("/cancel-event", authenticateToken, (req, res) => {
   const { event_id, cancellation_reason = "" } = req.body;
 
   if (!event_id) {
@@ -404,7 +429,7 @@ router.post("/cancel-event", (req, res) => {
   });
 });
 
-router.post('/reopen-event', async (req, res) => {
+router.post('/reopen-event', authenticateToken, async (req, res) => {
   const { event_id } = req.body;
 
   if (!event_id) {
@@ -439,7 +464,7 @@ router.post('/reopen-event', async (req, res) => {
   }
 });
 
-router.post("/update-last-update", async (req, res) => {
+router.post("/update-last-update", authenticateToken, async (req, res) => {
   const { event_id, path, timestamp } = req.body;
 
   // Validate input
@@ -497,7 +522,7 @@ router.post("/update-last-update", async (req, res) => {
   }
 });
 
-router.post("/fetch-last-update", async (req, res) => {
+router.post("/fetch-last-update", authenticateToken, async (req, res) => {
   const { event_id } = req.body;
 
   // Validate input
@@ -528,7 +553,7 @@ router.post("/fetch-last-update", async (req, res) => {
   }
 });
 
-router.post("/migrate-event", async (req, res) => {
+router.post("/migrate-event", authenticateToken, async (req, res) => {
   const { event_id } = req.body;
 
   if (!event_id) {
@@ -625,7 +650,7 @@ router.post("/migrate-event", async (req, res) => {
   }
 });
 
-router.get("/fetch-event-status", (req, res) => {
+router.get("/fetch-event-status", authenticateToken, async (req, res) => {
   const event_id = req.query.event_id;
 
   if (!event_id) {
@@ -649,7 +674,7 @@ router.get("/fetch-event-status", (req, res) => {
   });
 });
 
-router.delete("/delete-event", async (req, res) => {
+router.delete("/delete-event", authenticateToken, async (req, res) => {
   const { event_id } = req.body;
 
   if (!event_id) {
@@ -726,8 +751,6 @@ router.delete("/delete-event", async (req, res) => {
         userIdsToDelete
       );
     }
-
-
 
     res.status(200).json({ message: "Event and associated users deleted successfully" });
   } catch (error) {

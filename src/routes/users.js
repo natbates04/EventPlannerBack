@@ -1,8 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
-const { v4: uuidv4 } = require('uuid');  // Importing uuid
+const { v4: uuidv4 } = require('uuid'); 
 const sendEmail = require("../services/emailService");
+const jwt = require("jsonwebtoken");
+require("dotenv").config(); 
+
 
 function updateEventLastUpdated(event_id) {
   // Step 1: Get the current value of deleted_warning_sent
@@ -65,7 +68,6 @@ function updateEventLastUpdated(event_id) {
     }
   );
 };
-
 
 router.post("/create-user", async (req, res) => {
     const { email, name, fingerprint, role, event_id, profileNum} = req.body;
@@ -271,9 +273,20 @@ router.post("/login", async (req, res) => {
                       }
 
                       updateEventLastUpdated(event_id);
+                      const token = jwt.sign(
+                        {
+                          user_id: user.user_id,
+                          email: user.email,
+                          role: user.role,
+                        },
+                        process.env.JWT_SECRET,
+                        { expiresIn: "1h" } // expires in 1 hour
+                      );
+
                       return res.status(200).json({
                         authorized: true,
                         message: "User authorized as organiser.",
+                        token: token,
                         user_details: {
                           user_id: user.user_id,
                           email: user.email,
@@ -300,9 +313,22 @@ router.post("/login", async (req, res) => {
                         return res.status(500).json({ message: "Error updating fingerprint" });
                       }
                       updateEventLastUpdated(event_id);
+                      
+                      updateEventLastUpdated(event_id);
+                      const token = jwt.sign(
+                        {
+                          user_id: user.user_id,
+                          email: user.email,
+                          role: user.role,
+                        },
+                        process.env.JWT_SECRET,
+                        { expiresIn: "1h" } // expires in 1 hour
+                      );
+
                       return res.status(200).json({
                         authorized: true,
                         message: "User authorized as attendee.",
+                        token: token,
                         user_details: {
                           user_id: user.user_id,
                           email: user.email,

@@ -3,8 +3,9 @@ const router = express.Router();
 const db = require("../db");
 const { v4: uuidv4 } = require('uuid');  // Importing uuid
 const sendEmail = require("../services/emailService");
+const authenticateToken = require("../middleware/auth"); 
 
-router.get("/fetch-location", async (req, res) => {
+router.get("/fetch-location", authenticateToken, async (req, res) => {
     const { event_id } = req.query;
 
     if (!event_id) {
@@ -28,7 +29,7 @@ router.get("/fetch-location", async (req, res) => {
     }
 });
 
-router.put("/update-location", async (req, res) => {
+router.put("/update-location", authenticateToken, async (req, res) => {
     const { event_id, address, city, postcode, country, lat, lon } = req.body;
 
     console.log("Received update location request:", req.body);

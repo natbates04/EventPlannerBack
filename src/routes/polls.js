@@ -3,8 +3,9 @@ const router = express.Router();
 const db = require("../db");
 const { v4: uuidv4 } = require('uuid');  // Importing uuid
 const sendEmail = require("../services/emailService");
+const authenticateToken = require("../middleware/auth"); 
 
-router.get("/fetch-polls", async (req, res) => {
+router.get("/fetch-polls", authenticateToken, async (req, res) => {
     const { event_id } = req.query;
 
     if (!event_id) {
@@ -30,7 +31,7 @@ router.get("/fetch-polls", async (req, res) => {
     }
 });
 
-router.post("/create-poll", async (req, res) => {
+router.post("/create-poll", authenticateToken, async (req, res) => {
     const { event_id, poll_id, title, description, options, user_id, name, priority } = req.body;
 
     if (!event_id || !poll_id || !title || !description || !options || !Array.isArray(options) || !user_id || !priority) {
@@ -86,7 +87,7 @@ router.post("/create-poll", async (req, res) => {
     }
 });
   
-router.post("/cast-vote", async (req, res) => {
+router.post("/cast-vote", authenticateToken, async (req, res) => {
     const { event_id, poll_id, user_id, selected_option } = req.body;
 
     if (!event_id || !poll_id || !user_id || !selected_option) {
@@ -151,7 +152,7 @@ router.post("/cast-vote", async (req, res) => {
     }
 });
   
-router.post("/delete-poll", async (req, res) => {
+router.post("/delete-poll", authenticateToken, async (req, res) => {
     const { event_id, poll_id, user_id } = req.body;
 
     if (!event_id || !poll_id || !user_id) {
@@ -195,7 +196,7 @@ router.post("/delete-poll", async (req, res) => {
     }
 });
 
-router.post("/remove-vote", async (req, res) => {
+router.post("/remove-vote", authenticateToken, async (req, res) => {
     const { event_id, poll_id, user_id, selected_option } = req.body;
 
     if (!event_id || !poll_id || !user_id || !selected_option) {

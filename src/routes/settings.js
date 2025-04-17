@@ -3,8 +3,9 @@ const router = express.Router();
 const db = require("../db");
 const { v4: uuidv4 } = require('uuid');  // Importing uuid
 const sendEmail = require("../services/emailService");
+const authenticateToken = require("../middleware/auth"); 
 
-router.post("/update-event", async (req, res) => {
+router.post("/update-event", authenticateToken, async (req, res) => {
     const {
       event_id,
       title,
@@ -59,7 +60,7 @@ router.post("/update-event", async (req, res) => {
     }
 });
 
-router.get("/fetch-settings", async (req, res) => {
+router.get("/fetch-settings", authenticateToken, async (req, res) => {
 
   console.log("fetching settings");
 

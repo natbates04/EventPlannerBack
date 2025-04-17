@@ -1,10 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
-const { v4: uuidv4 } = require('uuid');  // Importing uuid
-const sendEmail = require("../services/emailService");
+const authenticateToken = require("../middleware/auth"); 
 
-router.get("/fetch-links", async (req, res) => {
+router.get("/fetch-links", authenticateToken, async (req, res) => {
   const { event_id } = req.query;
 
   if (!event_id) {
@@ -30,7 +29,7 @@ router.get("/fetch-links", async (req, res) => {
   }
 });
 
-router.post("/add-link", async (req, res) => {
+router.post("/add-link", authenticateToken, async (req, res) => {
     const { link, added_by, event_id} = req.body;
   
     // Validate required fields
@@ -78,7 +77,7 @@ router.post("/add-link", async (req, res) => {
     }
 });
   
-router.delete("/delete-link", async (req, res) => {
+router.delete("/delete-link", authenticateToken, async (req, res) => {
     const { link, event_id } = req.body;
   
     // Validate required fields

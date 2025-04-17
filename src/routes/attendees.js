@@ -1,8 +1,75 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
+const authenticateToken = require("../middleware/auth"); 
 
-router.get("/fetch-attendees", (req, res) => {
+// PUBLIC ATTENDEES ROUTE
+
+router.post("/request-access", async (req, res) => {
+
+  const { email, username, event_id, time_requested, profile_pic} = req.body;
+
+  console.log("[Request Access] Received request:", email, username, event_id, time_requested, profile_pic);
+
+  if (!email || !username || !event_id || !time_requested || profile_pic === null) {
+    console.log("[Request Access] Missing required fields.");
+
+    console.log("[Request Access] Request body:", req.body);
+
+    return res.status(400).json({ message: "Missing required fields" });
+  }
+
+  try {
+    // Fetch event details to check the requests column
+    const [rows] = await db.promise().execute(
+      "SELECT requests FROM event_details WHERE event_id = ?",
+      [event_id]
+    );
+
+    if (rows.length === 0) {
+      console.log("[Request Access] No event found for event_id:", event_id);
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    const event = rows[0];
+    let requests = [];
+
+    // Safely parse `requests` column (if it exists)
+    try {
+      requests = typeof event.requests === "string" ? JSON.parse(event.requests) : event.requests || [];
+    } catch (parseError) {
+      console.warn("[Request Access] Failed to parse requests. Defaulting to empty array.");
+      requests = [];
+    }
+
+    // Append new request with 'status' set to 'pending'
+    const newRequest = {
+      username,
+      email,
+      time_requested,
+      status: "pending",  // Set default status as 'pending'
+      profile_pic
+    };
+
+    requests.push(newRequest);
+
+    // Update the requests column with the new list
+    const updateQuery = "UPDATE event_details SET requests = ? WHERE event_id = ?";
+    await db.promise().execute(updateQuery, [JSON.stringify(requests), event_id]);
+
+    console.log("[Request Access] Request added successfully for event_id:", event_id);
+
+    // Return success response
+    res.status(200).json({ success: true, message: "Request added successfully." });
+  } catch (error) {
+    console.error("[Request Access] Error processing request:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// PRIVATE ATTENDEES ROUTE
+
+router.get("/fetch-attendees", authenticateToken, (req, res) => {
     const { event_id } = req.query;
     console.log("[fetch-attendees] Received request for event_id:", event_id);
   
@@ -117,70 +184,8 @@ router.get("/fetch-attendees", (req, res) => {
       }
     );
 });
-
-router.post("/request-access", async (req, res) => {
-
-    const { email, username, event_id, time_requested, profile_pic} = req.body;
   
-    console.log("[Request Access] Received request:", email, username, event_id, time_requested, profile_pic);
-  
-    if (!email || !username || !event_id || !time_requested || profile_pic === null) {
-      console.log("[Request Access] Missing required fields.");
-
-      console.log("[Request Access] Request body:", req.body);
-
-      return res.status(400).json({ message: "Missing required fields" });
-    }
-  
-    try {
-      // Fetch event details to check the requests column
-      const [rows] = await db.promise().execute(
-        "SELECT requests FROM event_details WHERE event_id = ?",
-        [event_id]
-      );
-  
-      if (rows.length === 0) {
-        console.log("[Request Access] No event found for event_id:", event_id);
-        return res.status(404).json({ message: "Event not found" });
-      }
-  
-      const event = rows[0];
-      let requests = [];
-  
-      // Safely parse `requests` column (if it exists)
-      try {
-        requests = typeof event.requests === "string" ? JSON.parse(event.requests) : event.requests || [];
-      } catch (parseError) {
-        console.warn("[Request Access] Failed to parse requests. Defaulting to empty array.");
-        requests = [];
-      }
-  
-      // Append new request with 'status' set to 'pending'
-      const newRequest = {
-        username,
-        email,
-        time_requested,
-        status: "pending",  // Set default status as 'pending'
-        profile_pic
-      };
-  
-      requests.push(newRequest);
-  
-      // Update the requests column with the new list
-      const updateQuery = "UPDATE event_details SET requests = ? WHERE event_id = ?";
-      await db.promise().execute(updateQuery, [JSON.stringify(requests), event_id]);
-  
-      console.log("[Request Access] Request added successfully for event_id:", event_id);
-  
-      // Return success response
-      res.status(200).json({ success: true, message: "Request added successfully." });
-    } catch (error) {
-      console.error("[Request Access] Error processing request:", error);
-      res.status(500).json({ message: "Server error" });
-    }
-});
-  
-router.post("/reject-request", async (req, res) => {
+router.post("/reject-request", authenticateToken, async (req, res) => {
 
     const { event_id, email } = req.body;
   
@@ -232,7 +237,7 @@ router.post("/reject-request", async (req, res) => {
     }
 });
   
-router.post("/update-requests", async (req, res) => {
+router.post("/update-requests", authenticateToken, async (req, res) => {
     
     const { event_id, requests } = req.body;
   
@@ -252,7 +257,7 @@ router.post("/update-requests", async (req, res) => {
     }
 });
 
-router.post("/promote-user", async (req, res) => {
+router.post("/promote-user", authenticateToken, async (req, res) => {
     const { event_id, user_id } = req.body;
   
     console.log("[Promote User] Request received with event_id:", event_id, "user_id:", user_id);
@@ -318,7 +323,7 @@ router.post("/promote-user", async (req, res) => {
     }
 });
 
-router.post("/demote-user", async (req, res) => {
+router.post("/demote-user", authenticateToken, async (req, res) => {
     const { event_id, user_id } = req.body;
   
     console.log("[Demote User] Request received with event_id:", event_id, "user_id:", user_id);
@@ -384,7 +389,7 @@ router.post("/demote-user", async (req, res) => {
     }
 });
 
-router.post("/kick-user", async (req, res) => {
+router.post("/kick-user", authenticateToken, async (req, res) => {
     const { event_id, user_id } = req.body;
   
     console.log("[Kick User] Request received with event_id:", event_id, "user_id:", user_id);

@@ -3,8 +3,9 @@ const router = express.Router();
 const db = require("../db");
 const { v4: uuidv4 } = require('uuid');  // Importing uuid
 const sendEmail = require("../services/emailService");
+const authenticateToken = require("../middleware/auth"); 
 
-router.get("/fetch-to-do", async (req, res) => {
+router.get("/fetch-to-do", authenticateToken, async (req, res) => {
     const { event_id } = req.query;
     if (!event_id) return res.status(400).json({ message: "Event ID is required" });
 
@@ -24,7 +25,7 @@ router.get("/fetch-to-do", async (req, res) => {
     }
 });
 
-router.post("/add-to-do", async (req, res) => {
+router.post("/add-to-do", authenticateToken, async (req, res) => {
     const { event_id, creator_id, task} = req.body;
 
     // Validate required fields
@@ -67,8 +68,7 @@ router.post("/add-to-do", async (req, res) => {
     }
 });
 
-
-router.post("/move-to-done", async (req, res) => {
+router.post("/move-to-done", authenticateToken, async (req, res) => {
     const { event_id, task_id } = req.body;
     if (!event_id || !task_id) {
         return res.status(400).json({ message: "Event ID and Task ID are required" });
@@ -106,8 +106,7 @@ router.post("/move-to-done", async (req, res) => {
     }
 });
 
-
-router.post("/move-to-do", async (req, res) => {
+router.post("/move-to-do", authenticateToken, async (req, res) => {
     const { event_id, task_id } = req.body;
     if (!event_id || !task_id) {
         return res.status(400).json({ message: "Event ID and Task ID are required" });
@@ -141,7 +140,7 @@ router.post("/move-to-do", async (req, res) => {
     }
 });
 
-router.delete("/delete-to-do", async (req, res) => {
+router.delete("/delete-to-do", authenticateToken, async (req, res) => {
     const { event_id, task_id } = req.body;
     if (!event_id || !task_id) {
         return res.status(400).json({ message: "Event ID and Task ID are required" });
@@ -172,7 +171,5 @@ router.delete("/delete-to-do", async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
-
-
 
 module.exports = router;
