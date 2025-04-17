@@ -83,7 +83,7 @@ const sendEmail = async (to, firstName, subject, innerHtmlContent, link) => {
           cid: "logo" // This is the Content-ID for embedding the logo
         },
         {
-          filename: "Terms_of_Service.pdf", // TOS file
+          filename: "Terms_Of_Service.pdf", // TOS file
           path: tosPath, // Path to the TOS PDF file
         },
         {
