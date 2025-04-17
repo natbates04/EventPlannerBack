@@ -24,7 +24,7 @@ const sendEmail = async (to, firstName, subject, innerHtmlContent, link) => {
   try {
     // Read image as buffer
     const logoPath =  "src/services/mail-attachments/logo.svg";
-    const tosPath = "src/services/mail-attachments/Terms_of_Service.pdf"; // Your Terms of Service file
+    const tosPath = "src/services/mail-attachments/Terms_Of_Service.pdf"; // Your Terms of Service file
     const privacyPolicyPath = "src/services/mail-attachments/Privacy_Policy.pdf";
     
     const logoBuffer = fs.readFileSync(logoPath);
