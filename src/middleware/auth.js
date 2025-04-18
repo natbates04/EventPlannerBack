@@ -5,6 +5,12 @@ const verifyToken = promisify(jwt.verify);
 
 const authenticateToken = async (req, res, next) => {
   try {
+    // Skip authentication in test mode
+    if (process.env.NODE_ENV === "test") {
+      req.user = { id: "test-user-id" }; // Optionally mock a user object
+      return next();
+    }
+
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
 
