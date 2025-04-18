@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const authenticateToken = require("../middleware/auth"); 
+const sendEmail = require("../services/emailService");
 
 // PUBLIC ATTENDEES ROUTE
 
@@ -22,7 +23,7 @@ router.post("/request-access", async (req, res) => {
   try {
     // Fetch event details to check the requests column
     const [rows] = await db.promise().execute(
-      "SELECT requests FROM event_details WHERE event_id = ?",
+      "SELECT requests, title, organiser_id FROM event_details WHERE event_id = ?",
       [event_id]
     );
 
@@ -32,6 +33,8 @@ router.post("/request-access", async (req, res) => {
     }
 
     const event = rows[0];
+    const eventTitle = event.title;
+    const organiserId = event.organiser_id;
     let requests = [];
 
     // Safely parse `requests` column (if it exists)
@@ -58,6 +61,38 @@ router.post("/request-access", async (req, res) => {
     await db.promise().execute(updateQuery, [JSON.stringify(requests), event_id]);
 
     console.log("[Request Access] Request added successfully for event_id:", event_id);
+
+    await sendEmail(
+      email,
+      username.split(" ")[0],
+      "Your Access Request Has Been Received",
+      `We have received your request to access the event "${eventTitle}". You will be notified once the organizer reviews it.`,
+      {
+        url: `${process.env.FRONT_END_URL}/event/${event_id}/requests/${email}`,
+        label: "See Status",
+      }
+    );    
+
+    const [organiserRows] = await db.promise().execute(
+      "SELECT username, email FROM user_details WHERE user_id = ?",
+      [organiserId]
+    );
+
+    if (organiserRows.length > 0) {
+      const organiser = organiserRows[0];
+
+      // 5. Send email to organiser
+      await sendEmail(
+        organiser.email,
+        organiser.username.split(" ")[0],
+        `New Access Request for "${eventTitle}"`,
+        `${username} has requested access to your event "<strong>${eventTitle}</strong>".`,
+        {
+          url: `${process.env.FRONT_END_URL}/event/${event_id}/requests`,
+          label: "Review Requests",
+        }
+      );
+    }
 
     // Return success response
     res.status(200).json({ success: true, message: "Request added successfully." });
