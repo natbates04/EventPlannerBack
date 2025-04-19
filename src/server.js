@@ -28,20 +28,16 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
+  origin: ["https://eventtripplanner.netlify.app", "https://easytripplanner.uk", "http://localhost:3000"], // Allow only your frontend's origin
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Specify allowed HTTP methods
+  allowedHeaders: ["Content-Type", "Authorization"], // Specify allowed headers
+  credentials: true
 }));
 
-// app.use((req, res, next) => {
-//   console.log("Incoming request origin:", req.headers.origin);
-//   next();
-// });
+app.use((req, res, next) => {
+  console.log("Incoming request origin:", req.headers.origin);
+  next();
+});
 
 app.use(express.json()); 
 
