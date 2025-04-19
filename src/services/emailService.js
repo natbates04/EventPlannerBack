@@ -23,7 +23,7 @@ const fonts = {
 const sendEmail = async (to, firstName, subject, innerHtmlContent, link) => {
   try {
     // Read image as buffer
-    const logoPath =  "src/services/mail-attachments/logo.svg";
+    const logoPath =  "src/services/mail-attachments/logo.png";
     const tosPath = "src/services/mail-attachments/Terms_Of_Service.pdf"; // Your Terms of Service file
     const privacyPolicyPath = "src/services/mail-attachments/Privacy_Policy.pdf";
     
@@ -37,7 +37,7 @@ const sendEmail = async (to, firstName, subject, innerHtmlContent, link) => {
       to,
       subject,
       html: `
-        <table role="presentation" style="width: 100%; max-width: 600px; margin: auto; padding: 20px; background-color: #f9f9f9; border: 3px solid black;">
+        <table role="presentation" style="width: 100%; max-width: 600px; margin: auto; padding: 20px; bgcolor="#f9f9f9"; background-color: #f9f9f9; border: 3px solid black;">
           <tr>
             <td style="text-align: center; padding-bottom: 20px;">
               <img src="cid:logo" alt="Event Planner Logo" style="max-width: 120px; margin-bottom: 20px;" />
@@ -78,7 +78,7 @@ const sendEmail = async (to, firstName, subject, innerHtmlContent, link) => {
       `,
       attachments: [
         {
-          filename: "logo.svg", // Logo file
+          filename: "logo.png", // Logo file
           path: logoPath, // Path to the logo image on your system
           cid: "logo" // This is the Content-ID for embedding the logo
         },

@@ -62,16 +62,16 @@ router.post("/request-access", async (req, res) => {
 
     console.log("[Request Access] Request added successfully for event_id:", event_id);
 
-    await sendEmail(
-      email,
-      username.split(" ")[0],
-      "Your Access Request Has Been Received",
-      `We have received your request to access the event "${eventTitle}". You will be notified once the organizer reviews it.`,
-      {
-        url: `${process.env.FRONT_END_URL}/event/${event_id}/requests/${email}`,
-        label: "See Status",
-      }
-    );    
+    // await sendEmail(
+    //   email,
+    //   username.split(" ")[0],
+    //   "Your Access Request Has Been Received",
+    //   `We have received your request to access the event "${eventTitle}". You will be notified once the organizer reviews it.`,
+    //   {
+    //     url: `${process.env.FRONT_END_URL}/event/${event_id}/requests/${email}`,
+    //     label: "See Status",
+    //   }
+    // );    -
 
     const [organiserRows] = await db.promise().execute(
       "SELECT username, email FROM user_details WHERE user_id = ?",
@@ -103,6 +103,46 @@ router.post("/request-access", async (req, res) => {
 });
 
 // PRIVATE ATTENDEES ROUTE
+
+router.post("/notifications/send-request-accepted-email", authenticateToken, async (req, res) => {
+  const { email, username, event_id } = req.body;
+
+  if (!email || !username || !event_id) {
+      return res.status(400).json({ message: "Missing required fields." });
+  }
+
+  try {
+      // Get event title
+      const [eventResult] = await db.promise().execute(
+          "SELECT title FROM event_details WHERE event_id = ?",
+          [event_id]
+      );
+
+      if (eventResult.length === 0) {
+          return res.status(404).json({ message: "Event not found." });
+      }
+
+      const eventTitle = eventResult[0].title;
+      const firstName = username.split(" ")[0];
+
+      // Send the email
+      await sendEmail(
+          email,
+          firstName,
+          "Your Access Request Has Been Accepted",
+          `Your request to join "${eventTitle}" has been accepted. Please enter your availability.`,
+          {
+              url: `${process.env.FRONT_END_URL}/event/${event_id}/requests/${email}`,
+              label: "See Event",
+          }
+      );
+
+      return res.status(200).json({ message: "Email sent." });
+  } catch (error) {
+      console.error("Error sending request accepted email:", error);
+      return res.status(500).json({ message: "Failed to send email." });
+  }
+});
 
 router.get("/fetch-attendees", authenticateToken, (req, res) => {
     const { event_id } = req.query;
