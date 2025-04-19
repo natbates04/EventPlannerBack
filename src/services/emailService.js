@@ -33,7 +33,7 @@ const sendEmail = async (to, firstName, subject, innerHtmlContent, link) => {
       to,
       subject,
       html: `
-        <table role="presentation" style="width: 100%; max-width: 600px; margin: auto; padding: 20px; bgcolor="#f9f9f9"; background-color: #f9f9f9; border: 3px solid black;">
+        <table role="presentation" style="width: 100%; max-width: 600px; margin: auto; padding: 20px; background-color: #f9f9f9; border: 3px solid black;">
           <tr>
             <td style="text-align: center; padding-bottom: 20px;">
               <img src="cid:logo" alt="Event Planner Logo" style="max-width: 120px; margin-bottom: 20px;" />
