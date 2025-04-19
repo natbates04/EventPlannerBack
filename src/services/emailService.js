@@ -26,10 +26,6 @@ const sendEmail = async (to, firstName, subject, innerHtmlContent, link) => {
     const logoPath =  "src/services/mail-attachments/logo.png";
     const tosPath = "src/services/mail-attachments/Terms_Of_Service.pdf"; // Your Terms of Service file
     const privacyPolicyPath = "src/services/mail-attachments/Privacy_Policy.pdf";
-    
-    const logoBuffer = fs.readFileSync(logoPath);
-    const tosBuffer = fs.readFileSync(tosPath); // Read TOS document
-    const privacyPolicyBuffer = fs.readFileSync(privacyPolicyPath); // Read Privacy Policy document
 
     // Mail options
     const mailOptions = {
