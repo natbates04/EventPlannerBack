@@ -132,7 +132,7 @@ router.post("/notifications/send-request-accepted-email", authenticateToken, asy
           "Your Access Request Has Been Accepted",
           `Your request to join "${eventTitle}" has been accepted. Please enter your availability.`,
           {
-              url: `${process.env.FRONT_END_URL}/event/${event_id}/requests/${email}`,
+              url: `${process.env.FRONT_END_URL}/event/${event_id}`,
               label: "See Event",
           }
       );
