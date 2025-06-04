@@ -37,6 +37,7 @@ router.get("/fetch-event-title/:event_id", async (req, res) => {
           return res.status(404).json({ message: "Event not found" });
       }
 
+      console.log("Event fetched successfully:", rows[0]);
       res.json(rows[0]); // Return the event details
   });
 });
