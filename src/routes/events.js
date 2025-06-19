@@ -38,7 +38,7 @@ router.get("/fetch-event-title/:event_id", async (req, res) => {
       }
 
       console.log("Event fetched successfully:", rows[0]);
-      res.json(rows[0]); // Return the event details
+      return res.json(rows[0]); 
   });
 });
 
