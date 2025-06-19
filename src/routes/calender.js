@@ -7,6 +7,8 @@ const authenticateToken = require("../middleware/auth");
 
 router.get("/fetch-calendar", authenticateToken, async (req, res) => {
 
+  console.log("Received request to fetch calendar");
+
   const { event_id } = req.query;
 
   if (!event_id) {
