@@ -68,9 +68,7 @@ router.put("/update-location", authenticateToken, async (req, res) => {
             `,
             [locationObject, event_id]
         );
-    
-        console.log("Database query result:", result);
-    
+        
         // Check the result
         if (result[0]?.affectedRows === 0) {
             return res.status(404).json({ message: "Event not found." });
