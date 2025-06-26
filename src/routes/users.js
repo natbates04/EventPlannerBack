@@ -167,6 +167,8 @@ router.post("/create-user", async (req, res) => {
         "SELECT * FROM user_details WHERE user_id = ?",
         [newUserId]
       );
+
+      console.log("New user data:", rows);
   
       if (rows.length === 0) {
         return res.status(500).json({ message: "Failed to retrieve user data" });
