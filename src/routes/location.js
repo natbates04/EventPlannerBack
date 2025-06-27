@@ -39,14 +39,6 @@ router.put("/update-location", authenticateToken, async (req, res) => {
     }
 
     // Create a location object to update the location field
-    const locationObject = {
-        address: address || "",
-        city: city || "",
-        postcode: postcode || "",
-        country: country || "",
-        lat,
-        lon,
-    };
 
     try {
         // Create a location object
@@ -70,7 +62,12 @@ router.put("/update-location", authenticateToken, async (req, res) => {
         );
         
         // Check the result
-        if (result[0]?.affectedRows === 0) {
+        const [updateResult] = await db.promise().execute(
+            `UPDATE event_details SET location = ? WHERE event_id = ?`,
+        [locationObject, event_id]
+        );
+
+        if (updateResult.affectedRows === 0) {
             return res.status(404).json({ message: "Event not found." });
         }
     
