@@ -123,10 +123,16 @@ router.post("/create-user", async (req, res) => {
       const newUserId = uuidv4();
   
       // Insert the new user into the database
-      await db.execute(
+      const [insertResult] = await db.promise().execute(
         "INSERT INTO user_details (user_id, email, username, fingerprint, role, profile_pic) VALUES (?, ?, ?, ?, ?, ?)",
         [newUserId, email, name, fingerprint, userRole, profileNum]
       );
+
+      if (!insertResult.affectedRows) {
+        console.error("Failed to insert user into database:");
+        return res.status(500).json({ message: "Failed to insert user" });
+      }
+
   
       console.log("New user ID: ", newUserId);
   
