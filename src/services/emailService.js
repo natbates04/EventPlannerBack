@@ -1,9 +1,9 @@
-import sgMail from "@sendgrid/mail";
-import path from "path";
-import fs from "fs";
-import dotenv from "dotenv";
+// src/services/emailService.js
 
-dotenv.config();
+const sgMail = require("@sendgrid/mail");
+const path = require("path");
+const fs = require("fs");
+require("dotenv").config();
 
 // ✅ Initialize SendGrid
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -123,4 +123,5 @@ async function sendEmail(to, firstName, subject, innerHtmlContent, link) {
   }
 }
 
+// ✅ Export CommonJS style
 module.exports = sendEmail;
