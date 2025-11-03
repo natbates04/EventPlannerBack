@@ -1,14 +1,14 @@
 const nodemailer = require("nodemailer");
-require("dotenv").config(); // Load environment variables
-const fs = require("fs");
-const path = require('path');
+require("dotenv").config();
+const path = require("path");
 
-// Create a transporter
+// Create a transporter using SendGrid SMTP
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.sendgrid.net",
+  port: 587,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: "apikey", // literally the word 'apikey'
+    pass: process.env.SENDGRID_API_KEY, // store your API key in .env
   },
 });
 
@@ -18,21 +18,16 @@ const fonts = {
   footerFont: `'Arial', sans-serif`,
 };
 
-
-// Function to send email
 const sendEmail = async (to, firstName, subject, innerHtmlContent, link) => {
-  
-  console.log("ATTEMPTING TO SEND MAIL")
-  
+  console.log("ATTEMPTING TO SEND MAIL");
+
   try {
-    // Read image as buffer
-    const logoPath =  "src/services/mail-attachments/logo.png";
-    const tosPath = "src/services/mail-attachments/Terms_Of_Service.pdf"; // Your Terms of Service file
+    const logoPath = "src/services/mail-attachments/logo.png";
+    const tosPath = "src/services/mail-attachments/Terms_Of_Service.pdf";
     const privacyPolicyPath = "src/services/mail-attachments/Privacy_Policy.pdf";
 
-    // Mail options
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: "easytripplannerservice@gmail.com",
       to,
       subject,
       html: `
@@ -77,19 +72,19 @@ const sendEmail = async (to, firstName, subject, innerHtmlContent, link) => {
       `,
       attachments: [
         {
-          filename: "logo.png", // Logo file
-          path: logoPath, // Path to the logo image on your system
-          cid: "logo" // This is the Content-ID for embedding the logo
+          filename: "logo.png",
+          path: logoPath,
+          cid: "logo",
         },
         {
-          filename: "Terms_Of_Service.pdf", // TOS file
-          path: tosPath, // Path to the TOS PDF file
+          filename: "Terms_Of_Service.pdf",
+          path: tosPath,
         },
         {
-          filename: "Privacy_Policy.pdf", // Privacy Policy file
-          path: privacyPolicyPath, // Path to the Privacy Policy PDF file
-        }
-      ]
+          filename: "Privacy_Policy.pdf",
+          path: privacyPolicyPath,
+        },
+      ],
     };
 
     const info = await transporter.sendMail(mailOptions);
@@ -101,6 +96,7 @@ const sendEmail = async (to, firstName, subject, innerHtmlContent, link) => {
   }
 };
 
-// sendEmail("nathaniel.christopher.bates@gmail.com", "Nat", "Test Email", "This is a test email with embedded logo and attachments.", { url: "https://example.com", label: "Click Here" })
+sendEmail("nathaniel.christopher.bates@gmail.com", "Nat", "Test Email", "This is a test email with embedded logo and attachments.", { url: "https://example.com", label: "Click Here" })
+
 
 module.exports = sendEmail;
