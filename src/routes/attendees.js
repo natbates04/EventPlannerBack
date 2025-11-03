@@ -144,120 +144,94 @@ router.post("/notifications/send-request-accepted-email", authenticateToken, asy
   }
 });
 
-router.get("/fetch-attendees", authenticateToken, (req, res) => {
-    const { event_id } = req.query;
-    console.log("[fetch-attendees] Received request for event_id:", event_id);
-  
-    if (!event_id) {
-      console.log("[fetch-attendees] Missing event_id in request query");
-      return res.status(400).json({ message: "Missing event_id" });
-    }
-  
+
+// Support both /fetch-attendees?event_id=... and /fetch-attendees/:event_id
+router.get(["/fetch-attendees", "/fetch-attendees/:event_id"], authenticateToken, async (req, res) => {
+  const event_id = req.params.event_id || req.query.event_id;
+  console.log("[fetch-attendees] Received request for event_id:", event_id);
+
+  if (!event_id) {
+    console.log("[fetch-attendees] Missing event_id in request");
+    return res.status(400).json({ message: "Missing event_id" });
+  }
+
+  try {
     // Fetch the organiser_id, attendees, and requests list for the event
-    db.execute(
+    const [rows] = await db.execute(
       "SELECT organiser_id, attendees, requests FROM event_details WHERE event_id = ?",
-      [event_id],
-      (err, rows) => {
-        if (err) {
-          console.error("[fetch-attendees] Database error while fetching event:", err);
-          return res.status(500).json({ message: "Server error" });
-        }
-  
-        if (rows.length === 0) {
-          console.log("[fetch-attendees] No event found for event_id:", event_id);
-          return res.status(404).json({ message: "Event not found" });
-        }
-  
-        // Extract organiser_id, attendees, and requests from the retrieved row
-        const eventRow = rows[0];
-        console.log("[fetch-attendees] Fetched event row:", eventRow);
-        const organiserId = eventRow.organiser_id;
-        let attendeesList = [];
-        let requestsList = [];
-
-        if (eventRow.attendees) {
-          try {
-            // If the data is stored as a string, parse it; if it’s an array, use it directly.
-            if (typeof eventRow.attendees === "string") {
-              attendeesList = JSON.parse(eventRow.attendees);
-            } else if (Array.isArray(eventRow.attendees)) {
-              attendeesList = eventRow.attendees;
-            }
-            console.log("[fetch-attendees] Parsed attendees list:", attendeesList);
-          } catch (parseErr) {
-            console.error("[fetch-attendees] Error parsing attendees:", parseErr);
-            // If parsing fails, default to an empty array.
-            attendeesList = [];
-          }
-        } else {
-          console.log("[fetch-attendees] No attendees found in event row.");
-        }
-
-        if (eventRow.requests) {
-          try {
-            // If the data is stored as a string, parse it; if it’s an array, use it directly.
-            if (typeof eventRow.requests === "string") {
-              requestsList = JSON.parse(eventRow.requests);
-            } else if (Array.isArray(eventRow.requests)) {
-              requestsList = eventRow.requests;
-            }
-            console.log("[fetch-attendees] Parsed requests list:", requestsList);
-          } catch (parseErr) {
-            console.error("[fetch-attendees] Error parsing requests:", parseErr);
-            // If parsing fails, default to an empty array.
-            requestsList = [];
-          }
-        } else {
-          console.log("[fetch-attendees] No requests found in event row.");
-        }
-  
-        // Combine organiser_id, attendees, and requests (ensuring there are no duplicates)
-        const userIdsSet = new Set();
-        if (organiserId) {
-          userIdsSet.add(organiserId);
-        }
-        if (Array.isArray(attendeesList)) {
-          attendeesList.forEach((uuid) => {
-            // Ensure uuid is valid (not undefined or null)
-            if (uuid) {
-              userIdsSet.add(uuid);
-            }
-          });
-        }
-        const userIds = Array.from(userIdsSet);
-        console.log("[fetch-attendees] Combined user IDs:", userIds);
-  
-        if (userIds.length === 0) {
-          console.log("[fetch-attendees] No user IDs to fetch details for");
-          return res.status(200).json({ organiser: null, attendees: [], requests: [] });
-        }
-  
-        // Build a dynamic query to fetch details from user_details for these UUIDs
-        const placeholders = userIds.map(() => "?").join(", ");
-        const query = `SELECT user_id, username, role, created_at, profile_pic FROM user_details WHERE user_id IN (${placeholders})`;
-        console.log("[fetch-attendees] Executing query:", query, "with userIds:", userIds);
-  
-        db.execute(query, userIds, (userErr, userRows) => {
-          if (userErr) {
-            console.error("[fetch-attendees] Error fetching user details:", userErr);
-            return res.status(500).json({ message: "Error fetching user details" });
-          }
-  
-          console.log("[fetch-attendees] Fetched user rows:", userRows);
-  
-          // Separate organiser from the attendee list
-          const organiser = userRows.find((user) => user.user_id === organiserId) || null;
-          const attendees = userRows.filter((user) => user.user_id !== organiserId);
-  
-          // Return the combined data object, including requests
-          return res.status(200).json({
-            organiser,
-            attendees,
-            requests: requestsList,
-          });
-        });
-      }
+      [event_id]
     );
+
+    if (rows.length === 0) {
+      console.log("[fetch-attendees] No event found for event_id:", event_id);
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    // Extract organiser_id, attendees, and requests from the retrieved row
+    const eventRow = rows[0];
+    const organiserId = eventRow.organiser_id;
+    let attendeesList = [];
+    let requestsList = [];
+
+    if (eventRow.attendees) {
+      try {
+        if (typeof eventRow.attendees === "string") {
+          attendeesList = JSON.parse(eventRow.attendees);
+        } else if (Array.isArray(eventRow.attendees)) {
+          attendeesList = eventRow.attendees;
+        }
+      } catch (parseErr) {
+        console.error("[fetch-attendees] Error parsing attendees:", parseErr);
+        attendeesList = [];
+      }
+    }
+
+    if (eventRow.requests) {
+      try {
+        if (typeof eventRow.requests === "string") {
+          requestsList = JSON.parse(eventRow.requests);
+        } else if (Array.isArray(eventRow.requests)) {
+          requestsList = eventRow.requests;
+        }
+      } catch (parseErr) {
+        console.error("[fetch-attendees] Error parsing requests:", parseErr);
+        requestsList = [];
+      }
+    }
+
+    // Combine organiser_id and attendees (ensuring no duplicates)
+    const userIdsSet = new Set();
+    if (organiserId) userIdsSet.add(organiserId);
+    if (Array.isArray(attendeesList)) {
+      attendeesList.forEach((uuid) => {
+        if (uuid) userIdsSet.add(uuid);
+      });
+    }
+    const userIds = Array.from(userIdsSet);
+
+    if (userIds.length === 0) {
+      return res.status(200).json({ organiser: null, attendees: [], requests: requestsList });
+    }
+
+    // Build a dynamic query to fetch details from user_details for these UUIDs
+    const placeholders = userIds.map(() => "?").join(", ");
+    const query = `SELECT user_id, username, role, created_at, profile_pic FROM user_details WHERE user_id IN (${placeholders})`;
+    const [userRows] = await db.execute(query, userIds);
+
+    // Separate organiser from the attendee list
+    const organiser = userRows.find((user) => user.user_id === organiserId) || null;
+    const attendees = userRows.filter((user) => user.user_id !== organiserId);
+
+    // Return the combined data object, including requests
+    return res.status(200).json({
+      organiser,
+      attendees,
+      requests: requestsList,
+    });
+  } catch (error) {
+    console.error("[fetch-attendees] Error:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
 });
   
 router.post("/reject-request", authenticateToken, async (req, res) => {
