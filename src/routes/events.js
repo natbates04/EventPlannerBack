@@ -22,24 +22,21 @@ const isEventIdUnique = (newEventId) => {
 
 // PUBLIC API ENDPOINTS
 
+
 router.get("/fetch-event-title/:event_id", async (req, res) => {
-  const { event_id } = req.params; // Get event_id from the URL path
-
+  const { event_id } = req.params;
   console.log("Fetching event: " + event_id);
-
-  db.execute("SELECT title FROM event_details WHERE event_id = ?", [event_id], (err, rows) => {
-      if (err) {
-          console.error("Error fetching event:", err);
-          return res.status(500).json({ message: "Server error" });
-      }
-
-      if (rows.length === 0) {
-          return res.status(404).json({ message: "Event not found" });
-      }
-
-      console.log("Event fetched successfully:", rows[0]);
-      return res.json(rows[0]); 
-  });
+  try {
+    const [rows] = await db.execute("SELECT title FROM event_details WHERE event_id = ?", [event_id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+    console.log("Event fetched successfully:", rows[0]);
+    return res.json(rows[0]);
+  } catch (err) {
+    console.error("Error fetching event:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
 });
 
 
