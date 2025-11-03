@@ -21,17 +21,33 @@ dotenv.config();
 
 const app = express();
 
+// Configure server timeout
+app.use((req, res, next) => {
+  // Set timeout to 30 seconds
+  req.setTimeout(30000);
+  res.setTimeout(30000);
+  next();
+});
+
 const allowedOrigins = [
   "http://localhost:3000",
   "https://eventtripplanner.netlify.app",
   "https://easytripplanner.uk"
 ];
 
+// CORS configuration
 app.use(cors({
-  origin: ["https://eventtripplanner.netlify.app", "https://easytripplanner.uk", "http://localhost:3000"], // Allow only your frontend's origin
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Specify allowed HTTP methods
-  allowedHeaders: ["Content-Type", "Authorization"], // Specify allowed headers
-  credentials: true
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
 }));
 
 app.use((req, res, next) => {
@@ -54,13 +70,48 @@ app.use("/api/calendar", calenderRoutes);
 app.use("/api/settings", settingsRoutes); 
 
 app.get("/api/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+  try {
+    res.status(200).json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      origin: req.headers.origin || 'No origin specified',
+      cors: allowedOrigins.includes(req.headers.origin) ? 'allowed' : 'not allowed'
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
+// 404 Handler
 app.use((req, res, next) => {
-  res.status(404).json({ error: 'Not Found' });
+  res.status(404).json({ 
+    error: 'Not Found',
+    path: req.path,
+    method: req.method 
+  });
 });
 
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      error: 'CORS Error',
+      message: 'Origin not allowed',
+      origin: req.headers.origin
+    });
+  }
+  
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // console.log(listEndpoints(app));
 
