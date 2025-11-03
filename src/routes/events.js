@@ -43,108 +43,114 @@ router.get("/fetch-event-title/:event_id", async (req, res) => {
 });
 
 router.post("/create-event", (req, res) => {
-  let {
-    event_id,
-    title,
-    description,
-    earliest_date,
-    latest_date,
-    location,
-    duration = 1,
-    reminder_time,
-    organiser_id,
-    status = "pending",
-  } = req.body;
-
-  console.log("Organiser's ID:", organiser_id);
-
-  // Generate UUID if not provided
-  if (!event_id) {
-    event_id = uuidv4();
-  } else if (!isUUID(event_id)) {
-    return res.status(400).json({ message: "Invalid event_id format" });
-  }
-
-  // Validate required fields
-  if (!title || !earliest_date || !latest_date || !organiser_id) {
-    return res.status(400).json({ message: "Missing required fields" });
-  }
-
-  // Convert empty or undefined values to NULL for MySQL
-  reminder_time = reminder_time || null;
-  location = location || null;
-  title = title || null;
-  description = description || null;
-
-  // Ensure numeric fields are treated correctly
-  duration = Number(duration) || 1;
-
-  const query = `
-    INSERT INTO event_details (event_id, title, description, earliest_date, latest_date, location, 
-    duration, reminder_time, organiser_id, status) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  db.execute(
-    query,
-    [
+  try {
+    let {
       event_id,
       title,
       description,
       earliest_date,
       latest_date,
       location,
-      duration,
+      duration = 1,
       reminder_time,
       organiser_id,
-      status,
-    ],
-    (err, result) => {
-      if (err) {
-        console.error("Error creating event:", err);
-        return res.status(500).json({ message: "Server error", error: err.message });
-      }
+      status = "pending",
+    } = req.body;
 
-      console.log("Event created successfully with ID:", event_id);
+    console.log("Organiser's ID:", organiser_id);
 
-      // Fetch the organiser's email
-      db.execute(
-        "SELECT email, username FROM user_details WHERE user_id = ?",
-        [organiser_id],
-        (emailErr, emailResult) => {
-          if (emailErr) {
-            console.error("Error fetching organiser's email:", emailErr);
-            return res
-              .status(500)
-              .json({ message: "Failed to fetch organiser's email" });
-          }
-
-          if (emailResult.length === 0) {
-            console.error("Organiser email not found for organiser_id:", organiser_id);
-            return res
-              .status(404)
-              .json({ message: "Organiser not found in user_details" });
-          }
-
-          const { email: organiserEmail, username: organiserName } = emailResult[0];
-          console.log("Organiser's email:", organiserEmail);
-
-          const firstName = organiserName.split(" ")[0] || organiserName;
-
-          // Prepare the message
-          const emailMessage = `Your event "${title}" has been created successfully. You can view it by pressing the button below.`;
-
-          // Call the sendEmail function
-          sendEmail(organiserEmail, firstName, "Event Created", emailMessage, { url: `${process.env.FRONT_END_URL}/event/${event_id}`, label: "See Event" });
-
-          // Respond to the client
-          res
-            .status(201)
-            .json({ message: "Event created successfully", event_id });
-        }
-      );
+    // Generate UUID if not provided
+    if (!event_id) {
+      event_id = uuidv4();
+    } else if (!isUUID(event_id)) {
+      return res.status(400).json({ message: "Invalid event_id format" });
     }
-  );
+
+    // Validate required fields
+    if (!title || !earliest_date || !latest_date || !organiser_id) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // Convert empty or undefined values to NULL for MySQL
+    reminder_time = reminder_time || null;
+    location = location || null;
+    title = title || null;
+    description = description || null;
+
+    // Ensure numeric fields are treated correctly
+    duration = Number(duration) || 1;
+
+    const query = `
+      INSERT INTO event_details (event_id, title, description, earliest_date, latest_date, location, 
+      duration, reminder_time, organiser_id, status) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    db.execute(
+      query,
+      [
+        event_id,
+        title,
+        description,
+        earliest_date,
+        latest_date,
+        location,
+        duration,
+        reminder_time,
+        organiser_id,
+        status,
+      ],
+      (err, result) => {
+        if (err) {
+          console.error("Error creating event:", err);
+          // Always send a response, even on error
+          return res.status(500).json({ message: "Server error", error: err.message });
+        }
+
+        console.log("Event created successfully with ID:", event_id);
+
+        // Fetch the organiser's email
+        db.execute(
+          "SELECT email, username FROM user_details WHERE user_id = ?",
+          [organiser_id],
+          (emailErr, emailResult) => {
+            if (emailErr) {
+              console.error("Error fetching organiser's email:", emailErr);
+              return res
+                .status(500)
+                .json({ message: "Failed to fetch organiser's email" });
+            }
+
+            if (emailResult.length === 0) {
+              console.error("Organiser email not found for organiser_id:", organiser_id);
+              return res
+                .status(404)
+                .json({ message: "Organiser not found in user_details" });
+            }
+
+            const { email: organiserEmail, username: organiserName } = emailResult[0];
+            console.log("Organiser's email:", organiserEmail);
+
+            const firstName = organiserName.split(" ")[0] || organiserName;
+
+            // Prepare the message
+            const emailMessage = `Your event "${title}" has been created successfully. You can view it by pressing the button below.`;
+
+            // Call the sendEmail function
+            sendEmail(organiserEmail, firstName, "Event Created", emailMessage, { url: `${process.env.FRONT_END_URL}/event/${event_id}`, label: "See Event" });
+
+            // Respond to the client
+            res
+              .status(201)
+              .json({ message: "Event created successfully", event_id });
+          }
+        );
+      }
+    );
+  } catch (error) {
+    console.error("Unhandled error in /create-event:", error);
+    res.status(500).json({ message: "Unhandled server error", error: error.message });
+  }
 });
 
 // PRIVATE API ENDPOINTS
