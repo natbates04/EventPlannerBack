@@ -154,6 +154,8 @@ router.post("/create-event", (req, res) => {
     console.error("Unhandled error in /create-event:", error);
     res.status(500).json({ message: "Unhandled server error", error: error.message });
   }
+
+  console.log("STUFF HAS FINISHED RUNNING");
 });
 
 // PRIVATE API ENDPOINTS
