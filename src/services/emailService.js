@@ -24,7 +24,7 @@ const fonts = {
  * @param {string} innerHtmlContent - email body text (HTML allowed)
  * @param {Object} [link] - optional link button { url, label }
  */
-export async function sendEmail(to, firstName, subject, innerHtmlContent, link) {
+async function sendEmail(to, firstName, subject, innerHtmlContent, link) {
   console.log("ATTEMPTING TO SEND MAIL...");
 
   try {
@@ -122,3 +122,5 @@ export async function sendEmail(to, firstName, subject, innerHtmlContent, link) 
     throw error;
   }
 }
+
+module.exports = sendEmail;
