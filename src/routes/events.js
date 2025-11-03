@@ -22,6 +22,7 @@ const isEventIdUnique = (newEventId) => {
 
 // PUBLIC API ENDPOINTS
 
+
 router.get("/fetch-event-title/:event_id", async (req, res) => {
   const { event_id } = req.params;
   console.log("Fetching event: " + event_id);
@@ -302,20 +303,18 @@ router.post("/confirm-event", authenticateToken, async (req, res) => {
     
       const eventUrl = `${process.env.FRONT_END_URL}/event/${event_id}`;
     
-      await Promise.all(
-        attendeeRows.map(({ email, username }) => {
-          const firstName = username.split(" ")[0];
-          return sendEmail(
-            email,
-            firstName,
-            "Event Confirmed",
-            `Hi ${firstName}, the event "${title}" you were invited to has been confirmed.\n` +
-            `Confirmed Date: ${earliestDate}\n\n`,
-            { url: eventUrl, label: "See Details" }
-          );
-        })
-      );
-
+      for (const { email, username } of attendeeRows) {
+        const firstName = username.split(" ")[0];
+    
+        await sendEmail(
+          email,
+          firstName,
+          "Event Confirmed",
+          `Hi ${firstName}, the event "${title}" you were invited to has been confirmed.\n` +
+          `Confirmed Date: ${earliestDate}\n\n`,
+          { url: eventUrl, label: "See Details" }
+        );
+      }
     
       console.log("Confirmation sent to attendees:", attendeeRows.map(a => a.email));
     }
@@ -326,103 +325,99 @@ router.post("/confirm-event", authenticateToken, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-router.post("/cancel-event", authenticateToken, async (req, res) => {
+
+router.post("/cancel-event", authenticateToken, (req, res) => {
   const { event_id, cancellation_reason = "" } = req.body;
 
   if (!event_id) {
     return res.status(400).json({ message: "event_id is required" });
   }
 
-  try {
-    // --- Step 1: Update event status ---
-    const [updateResult] = await db.execute(
-      `
-        UPDATE event_details 
-        SET status = 'canceled', cancellation_reason = ?, reminder_time = NULL 
-        WHERE event_id = ?
-      `,
-      [cancellation_reason, event_id]
-    );
+  const updateQuery = `
+    UPDATE event_details 
+    SET status = 'canceled', cancellation_reason = ?, reminder_time = NULL 
+    WHERE event_id = ?
+  `;
 
-    if (updateResult.affectedRows === 0) {
+  db.execute(updateQuery, [cancellation_reason, event_id], async (err, result) => {
+    if (err) {
+      console.error("Error cancelling event:", err);
+      return res.status(500).json({ message: "Server error" });
+    }
+
+    if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    console.log(`✅ Event ${event_id} cancelled with reason: ${cancellation_reason}`);
+    console.log(`Event ${event_id} cancelled successfully with reason: ${cancellation_reason}`);
 
-    // --- Step 2: Fetch organiser, attendees, and title ---
-    const [eventRows] = await db.execute(
-      "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
-      [event_id]
-    );
-
-    if (eventRows.length === 0) {
-      return res.status(404).json({ message: "Event not found after update" });
-    }
-
-    const { organiser_id, attendees, title } = eventRows[0];
-
-    // --- Step 3: Fetch organiser details ---
-    const [organiserRows] = await db.execute(
-      "SELECT email, username FROM user_details WHERE user_id = ?",
-      [organiser_id]
-    );
-
-    if (organiserRows.length === 0) {
-      console.warn(`⚠️ No organiser found for organiser_id: ${organiser_id}`);
-    } else {
-      const { email: organiserEmail, username: organiserName } = organiserRows[0];
-      const organiserFirstName = organiserName.split(" ")[0];
-
-      // --- Step 4: Notify organiser ---
-      await sendEmail(
-        organiserEmail,
-        organiserFirstName,
-        "Event Cancelled",
-        `Hi ${organiserFirstName}, your event "${title}" has been cancelled.${
-          cancellation_reason ? ` Reason: ${cancellation_reason}` : ""
-        }`
+    try {
+      // Fetch organiser ID, attendees, and title
+      const [eventRows] = await db.execute(
+        "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
+        [event_id]
       );
 
-      console.log(`📧 Notified organiser: ${organiserEmail}`);
-    }
+      if (eventRows.length === 0) {
+        return res.status(404).json({ message: "Event not found after update" });
+      }
 
-    // --- Step 5: Notify attendees (if any) ---
-    if (Array.isArray(attendees) && attendees.length > 0) {
-      const placeholders = attendees.map(() => "?").join(",");
-      const [attendeeRows] = await db.execute(
-        `SELECT email, username FROM user_details WHERE user_id IN (${placeholders})`,
-        attendees
+      const { organiser_id, attendees, title } = eventRows[0];
+
+      // Get organiser details
+      const [organiserRows] = await db.execute(
+        "SELECT email, username FROM user_details WHERE user_id = ?",
+        [organiser_id]
       );
 
-      const attendeeMessage = `The event "${title}" you were invited to has been cancelled.${
-        cancellation_reason ? ` Reason: ${cancellation_reason}` : ""
-      }`;
+      let organiserEmail = "";
+      let organiserFirstName = "";
 
-      await Promise.all(
-        attendeeRows.map(({ email, username }) => {
+      if (organiserRows.length > 0) {
+        const { email, username } = organiserRows[0];
+        organiserEmail = email;
+        organiserFirstName = username.split(" ")[0];
+      }
+
+      // Send email to organiser
+      if (organiserEmail) {
+        await sendEmail(
+          organiserEmail,
+          organiserFirstName,
+          "Event Cancelled",
+          `Hi ${organiserFirstName}, your event "${title}" has been cancelled. Reason: ${cancellation_reason}`
+        );
+      }
+
+      // Parse attendees array
+      let attendeeIds = attendees;
+
+      if (Array.isArray(attendeeIds) && attendeeIds.length > 0) {
+        const [attendeeRows] = await db.execute(
+          `SELECT email, username FROM user_details WHERE user_id IN (${attendeeIds.map(() => '?').join(',')})`,
+          attendeeIds
+        );
+
+        for (const { email, username } of attendeeRows) {
           const firstName = username.split(" ")[0];
-          return sendEmail(email, firstName, "Event Cancelled", attendeeMessage);
-        })
-      );
+          await sendEmail(
+            email,
+            firstName,
+            "Event Cancelled",
+            `Hi ${firstName}, the event "${title}" you were invited to has been cancelled. Reason: ${cancellation_reason}`
+          );
+        }
 
-      console.log(`📨 Notified ${attendeeRows.length} attendees`);
+        console.log("Notified attendees of cancellation:", attendeeRows.map(a => a.email));
+      }
+
+      res.json({ message: "Event cancelled and notifications sent" });
+    } catch (error) {
+      console.error("Error fetching details during cancellation:", error);
+      res.status(500).json({ message: "Server error" });
     }
-
-    // --- Step 6: Respond success ---
-    res.status(200).json({
-      message: "Event cancelled and notifications sent successfully",
-    });
-
-  } catch (error) {
-    console.error("❌ Error during cancellation:", error);
-    res.status(500).json({
-      message: "Server error during event cancellation",
-      error: error.message,
-    });
-  }
+  });
 });
-
 
 router.post('/reopen-event', authenticateToken, async (req, res) => {
   const { event_id } = req.body;
@@ -552,105 +547,99 @@ router.post("/migrate-event", authenticateToken, async (req, res) => {
   const { event_id } = req.body;
 
   if (!event_id) {
-    return res.status(400).json({ message: "Event ID is required" });
+      return res.status(400).json({ message: "Event ID is required" });
   }
 
   try {
-    // --- Generate a unique new event ID ---
-    let newEventId = uuidv4();
-    let isUnique = await isEventIdUnique(newEventId);
+      let newEventId = uuidv4();
+      let isUnique = await isEventIdUnique(newEventId);
 
-    while (!isUnique) {
-      console.log(`UUID ${newEventId} already exists, generating a new one...`);
-      newEventId = uuidv4();
-      isUnique = await isEventIdUnique(newEventId);
-    }
+      while (!isUnique) {
+          console.log(`UUID ${newEventId} already exists, generating a new one...`);
+          newEventId = uuidv4();
+          isUnique = await isEventIdUnique(newEventId);
+      }
 
-    // --- Fetch organiser, attendees, and title ---
-    const [eventRows] = await db.execute(
-      "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
-      [event_id]
-    );
-
-    if (eventRows.length === 0) {
-      return res.status(404).json({ message: "Event not found" });
-    }
-
-    const { organiser_id, attendees, title } = eventRows[0];
-
-    // --- Update the event ID ---
-    const [updateResult] = await db.execute(
-      "UPDATE event_details SET event_id = ? WHERE event_id = ?",
-      [newEventId, event_id]
-    );
-
-    if (updateResult.affectedRows === 0) {
-      return res.status(404).json({ message: "Event not found" });
-    }
-
-    console.log(`✅ Event ID successfully migrated from ${event_id} → ${newEventId}`);
-
-    // --- Fetch organiser details ---
-    const [organiserRes] = await db.execute(
-      "SELECT email, username FROM user_details WHERE user_id = ?",
-      [organiser_id]
-    );
-
-    if (organiserRes.length === 0) {
-      return res.status(404).json({ message: "Organiser not found" });
-    }
-
-    const { email: organiserEmail, username: organiserName } = organiserRes[0];
-    const organiserFirstName = organiserName.split(" ")[0];
-
-    // --- Send email to organiser ---
-    const organiserMessage = `Your event "${title}" has been migrated. View it using the button below.`;
-
-    await sendEmail(organiserEmail, organiserFirstName, "Event Migrated", organiserMessage, {
-      url: `${process.env.FRONT_END_URL}/event/${newEventId}`,
-      label: "See Event",
-    });
-
-    console.log(`📧 Email sent to organiser: ${organiserEmail}`);
-
-    // --- Notify attendees (if any) ---
-    if (Array.isArray(attendees) && attendees.length > 0) {
-      const placeholders = attendees.map(() => "?").join(",");
-      const [attendeeRows] = await db.execute(
-        `SELECT email, username FROM user_details WHERE user_id IN (${placeholders})`,
-        attendees
+      // Fetch organiser, attendees, and title
+      const [eventRows] = await db.execute(
+          "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
+          [event_id]
       );
 
-      const attendeeMessage = `An event you are part of, "${title}", has been migrated. View it using the button below.`;
+      if (eventRows.length === 0) {
+          return res.status(404).json({ message: "Event not found" });
+      }
 
-      // Use Promise.all to send in parallel safely
-      await Promise.all(
-        attendeeRows.map(({ email, username }) => {
-          const firstName = username.split(" ")[0];
-          return sendEmail(email, firstName, "Event Migrated", attendeeMessage, {
-            url: `${process.env.FRONT_END_URL}/event/${newEventId}`,
-            label: "See Event",
+      const { organiser_id, attendees, title } = eventRows[0];
+
+      // Update event ID
+      const updateQuery = "UPDATE event_details SET event_id = ? WHERE event_id = ?";
+      db.execute(updateQuery, [newEventId, event_id], async (err, result) => {
+          if (err) {
+              console.error("Error updating event ID:", err);
+              return res.status(500).json({ message: "Server error while updating event ID" });
+          }
+
+          if (result.affectedRows === 0) {
+              return res.status(404).json({ message: "Event not found" });
+          }
+
+          console.log(`Event ID successfully migrated from ${event_id} to ${newEventId}`);
+
+          // Get organiser's email
+          const [organiserRes] = await db.execute(
+              "SELECT email, username FROM user_details WHERE user_id = ?",
+              [organiser_id]
+          );
+
+          if (organiserRes.length === 0) {
+              return res.status(404).json({ message: "Organiser not found" });
+          }
+
+          const { email: organiserEmail, username: organiserName } = organiserRes[0];
+          const organiserFirstName = organiserName.split(" ")[0];
+
+          // Email message
+          const message = `Your event "${title}" has been migrated. View it using the button below.`;
+
+          // Send email to organiser
+          await sendEmail(organiserEmail, organiserFirstName, "Event Migrated", message, {
+              url: `${process.env.FRONT_END_URL}/event/${newEventId}`,
+              label: "See Event",
           });
-        })
-      );
 
-      console.log(`📨 Emails sent to ${attendeeRows.length} attendees`);
-    }
+          // Handle attendee emails
+          let attendeeIds = attendees;
 
-    // --- Success response ---
-    return res.status(200).json({
-      message: "Event successfully migrated and all emails sent",
-      new_event_id: newEventId,
-    });
+          const attendeeMessage = `An Event you are in named: "${title}" has been migrated. View it using the button below.`;
 
+          if (Array.isArray(attendeeIds) && attendeeIds.length > 0) {
+              const placeholders = attendeeIds.map(() => "?").join(",");
+              const [attendeeRows] = await db.execute(
+                  `SELECT email, username FROM user_details WHERE user_id IN (${placeholders})`,
+                  attendeeIds
+              );
+
+              for (const { email, username } of attendeeRows) {
+                  const firstName = username.split(" ")[0];
+                  await sendEmail(email, firstName, "Event Migrated", attendeeMessage, {
+                      url: `${process.env.FRONT_END_URL}/event/${newEventId}`,
+                      label: "See Event",
+                  });
+              }
+          }
+
+          return res.status(200).json({
+              message: "Event ID successfully migrated and emails sent to organiser and attendees",
+              new_event_id: newEventId,
+          });
+      });
   } catch (error) {
-    console.error("❌ Error during migration:", error);
-    return res.status(500).json({
-      message: "Error migrating event",
-      error: error.message,
-    });
+      console.error("Error during migration:", error);
+      return res.status(500).json({ message: "Error migrating event" });
   }
 });
+
 
 router.get("/fetch-event-status", authenticateToken, async (req, res) => {
   const event_id = req.query.event_id;
@@ -681,7 +670,7 @@ router.delete("/delete-event", authenticateToken, async (req, res) => {
   }
 
   try {
-    // Fetch event details
+    // Get the organiser_id and attendees list before deleting
     const [eventRows] = await db.execute(
       "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
       [event_id]
@@ -693,54 +682,70 @@ router.delete("/delete-event", authenticateToken, async (req, res) => {
 
     const { organiser_id, attendees, title } = eventRows[0];
 
-    // --- Fetch organiser details ---
-    const [emailResult] = await db.execute(
-      "SELECT email, username FROM user_details WHERE user_id = ?",
-      [organiser_id]
-    );
+    // Collect all user IDs to delete (organiser + attendees)
+    const userIdsToDelete = [];
 
-    if (emailResult.length === 0) {
-      console.error("Organiser not found in user_details for organiser_id:", organiser_id);
-      return res.status(404).json({ message: "Organiser not found in user_details" });
+    if (organiser_id) {
+      userIdsToDelete.push(organiser_id);
     }
-
-    const { email: organiserEmail, username: organiserName } = emailResult[0];
-    const firstName = organiserName.split(" ")[0] || organiserName;
-
-    // --- Send confirmation email to organiser ---
-    const emailMessage = `Your event "${title}" has been deleted successfully.`;
-    await sendEmail(organiserEmail, firstName, "Event Deleted", emailMessage);
-
-    console.log("Email sent to organiser:", organiserEmail);
-
-    // --- Collect all user IDs to delete (organiser + attendees) ---
-    const userIdsToDelete = [organiser_id];
 
     if (Array.isArray(attendees)) {
       userIdsToDelete.push(...attendees);
     }
 
-    // --- Delete the event ---
-    await db.execute("DELETE FROM event_details WHERE event_id = ?", [event_id]);
-    console.log("Event deleted from event_details:", event_id);
 
-    // --- Delete users from user_details (optional, ensure this is intended) ---
+    // Send email to organiser confirming deletion of the event
+    db.execute(
+      "SELECT email, username FROM user_details WHERE user_id = ?",
+      [organiser_id],
+      async (emailErr, emailResult) => {
+        if (emailErr) {
+          console.error("Error fetching organiser's email:", emailErr);
+          return res
+            .status(500)
+            .json({ message: "Failed to fetch organiser's email" });
+        }
+
+        if (emailResult.length === 0) {
+          console.error("Organiser email not found for organiser_id:", organiser_id);
+          return res
+            .status(404)
+            .json({ message: "Organiser not found in user_details" });
+        }
+
+        const { email: organiserEmail, username: organiserName } = emailResult[0];
+        console.log("Organiser's email:", organiserEmail);
+
+        const firstName = organiserName.split(" ")[0] || organiserName;
+
+        // Prepare the message
+        const emailMessage = `Your event "${title}" has been deleted successfully.`;
+
+        // Call the sendEmail function
+        await sendEmail(organiserEmail, firstName, "Event Created", emailMessage);
+    });
+
+
+    // Delete the event
+    await db.execute(
+      "DELETE FROM event_details WHERE event_id = ?",
+      [event_id]
+    );
+
+    // Delete users from user_details
     if (userIdsToDelete.length > 0) {
       await db.execute(
         `DELETE FROM user_details WHERE user_id IN (${userIdsToDelete.map(() => "?").join(",")})`,
         userIdsToDelete
       );
-      console.log("Deleted associated users:", userIdsToDelete);
     }
 
     res.status(200).json({ message: "Event and associated users deleted successfully" });
-
   } catch (error) {
     console.error("Error deleting event:", error);
-    res.status(500).json({ message: "Server error while deleting event and users", error: error.message });
+    res.status(500).json({ message: "Server error while deleting event and users" });
   }
 });
-
 
 
 module.exports = router;
