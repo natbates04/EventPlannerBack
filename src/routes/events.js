@@ -186,7 +186,7 @@ router.post("/update-event", authenticateToken, async (req, res) => {
 
   try {
     // Query to check if the event exists
-    const [rows] = await db.promise().execute(
+    const [rows] = await db.execute(
       "SELECT * FROM event_details WHERE event_id = ?",
       [event_id]
     );
@@ -196,7 +196,7 @@ router.post("/update-event", authenticateToken, async (req, res) => {
     }
 
     // Update event in the database with new fields (title, description, and other details)
-    await db.promise().execute(
+    await db.execute(
       `UPDATE event_details SET
         title = ?, 
         description = ?, 
@@ -237,7 +237,7 @@ router.post("/confirm-event", authenticateToken, async (req, res) => {
   `;
 
   try {
-    const [updateResult] = await db.promise().execute(updateQuery, [
+    const [updateResult] = await db.execute(updateQuery, [
       reminder_date || null,
       JSON.stringify(selectedDates),
       event_id,
@@ -250,7 +250,7 @@ router.post("/confirm-event", authenticateToken, async (req, res) => {
     console.log(`Event ${event_id} confirmed with reminder on ${reminder_date || "none"}`);
 
     // Fetch event data including organiser and attendees
-    const [eventRows] = await db.promise().execute(
+    const [eventRows] = await db.execute(
       "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
       [event_id]
     );
@@ -262,7 +262,7 @@ router.post("/confirm-event", authenticateToken, async (req, res) => {
     const { organiser_id, attendees, title } = eventRows[0];
 
     // Fetch organiser details
-    const [organiserRows] = await db.promise().execute(
+    const [organiserRows] = await db.execute(
       "SELECT email, username FROM user_details WHERE user_id = ?",
       [organiser_id]
     );
@@ -292,7 +292,7 @@ router.post("/confirm-event", authenticateToken, async (req, res) => {
     let attendeeIds = attendees;
 
     if (Array.isArray(attendeeIds) && attendeeIds.length > 0) {
-      const [attendeeRows] = await db.promise().execute(
+      const [attendeeRows] = await db.execute(
         `SELECT email, username FROM user_details WHERE user_id IN (${attendeeIds.map(() => '?').join(',')})`,
         attendeeIds
       );
@@ -353,7 +353,7 @@ router.post("/cancel-event", authenticateToken, (req, res) => {
 
     try {
       // Fetch organiser ID, attendees, and title
-      const [eventRows] = await db.promise().execute(
+      const [eventRows] = await db.execute(
         "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
         [event_id]
       );
@@ -365,7 +365,7 @@ router.post("/cancel-event", authenticateToken, (req, res) => {
       const { organiser_id, attendees, title } = eventRows[0];
 
       // Get organiser details
-      const [organiserRows] = await db.promise().execute(
+      const [organiserRows] = await db.execute(
         "SELECT email, username FROM user_details WHERE user_id = ?",
         [organiser_id]
       );
@@ -393,7 +393,7 @@ router.post("/cancel-event", authenticateToken, (req, res) => {
       let attendeeIds = attendees;
 
       if (Array.isArray(attendeeIds) && attendeeIds.length > 0) {
-        const [attendeeRows] = await db.promise().execute(
+        const [attendeeRows] = await db.execute(
           `SELECT email, username FROM user_details WHERE user_id IN (${attendeeIds.map(() => '?').join(',')})`,
           attendeeIds
         );
@@ -464,7 +464,7 @@ router.post("/update-last-update", authenticateToken, async (req, res) => {
 
   try {
     // Fetch the current last_updated object from the event_details table
-    const [event] = await db.promise().execute(
+    const [event] = await db.execute(
       "SELECT last_updated FROM event_details WHERE event_id = ?",
       [event_id]
     );
@@ -495,7 +495,7 @@ router.post("/update-last-update", authenticateToken, async (req, res) => {
     }
 
     // Update the last_updated field in the event_details table with the new data
-    const [result] = await db.promise().execute(
+    const [result] = await db.execute(
       "UPDATE event_details SET last_updated = ? WHERE event_id = ?",
       [JSON.stringify(lastUpdated), event_id] // Save it back as a JSON string
     );
@@ -512,7 +512,7 @@ router.post("/update-last-update", authenticateToken, async (req, res) => {
   }
 });
 
-router.post("/fetch-last-update", authenticateToken, async (req, res) => {
+router.post("/fetch-last-update", async (req, res) => {
   const { event_id } = req.body;
 
   // Validate input
@@ -522,7 +522,7 @@ router.post("/fetch-last-update", authenticateToken, async (req, res) => {
 
   try {
     // Fetch the last_updated object from the event_details table
-    const [event] = await db.promise().execute(
+    const [event] = await db.execute(
       "SELECT last_updated FROM event_details WHERE event_id = ?",
       [event_id]
     );
@@ -561,7 +561,7 @@ router.post("/migrate-event", authenticateToken, async (req, res) => {
       }
 
       // Fetch organiser, attendees, and title
-      const [eventRows] = await db.promise().execute(
+      const [eventRows] = await db.execute(
           "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
           [event_id]
       );
@@ -587,7 +587,7 @@ router.post("/migrate-event", authenticateToken, async (req, res) => {
           console.log(`Event ID successfully migrated from ${event_id} to ${newEventId}`);
 
           // Get organiser's email
-          const [organiserRes] = await db.promise().execute(
+          const [organiserRes] = await db.execute(
               "SELECT email, username FROM user_details WHERE user_id = ?",
               [organiser_id]
           );
@@ -615,7 +615,7 @@ router.post("/migrate-event", authenticateToken, async (req, res) => {
 
           if (Array.isArray(attendeeIds) && attendeeIds.length > 0) {
               const placeholders = attendeeIds.map(() => "?").join(",");
-              const [attendeeRows] = await db.promise().execute(
+              const [attendeeRows] = await db.execute(
                   `SELECT email, username FROM user_details WHERE user_id IN (${placeholders})`,
                   attendeeIds
               );
@@ -671,7 +671,7 @@ router.delete("/delete-event", authenticateToken, async (req, res) => {
 
   try {
     // Get the organiser_id and attendees list before deleting
-    const [eventRows] = await db.promise().execute(
+    const [eventRows] = await db.execute(
       "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
       [event_id]
     );
@@ -727,14 +727,14 @@ router.delete("/delete-event", authenticateToken, async (req, res) => {
 
 
     // Delete the event
-    await db.promise().execute(
+    await db.execute(
       "DELETE FROM event_details WHERE event_id = ?",
       [event_id]
     );
 
     // Delete users from user_details
     if (userIdsToDelete.length > 0) {
-      await db.promise().execute(
+      await db.execute(
         `DELETE FROM user_details WHERE user_id IN (${userIdsToDelete.map(() => "?").join(",")})`,
         userIdsToDelete
       );
