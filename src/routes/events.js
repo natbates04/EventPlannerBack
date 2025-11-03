@@ -126,7 +126,7 @@ router.post("/create-event", async (req, res) => {
     const emailMessage = `Your event "${title}" has been created successfully. You can view it by pressing the button below.`;
 
     // Call the sendEmail function
-    sendEmail(organiserEmail, firstName, "Event Created", emailMessage, { url: `${process.env.FRONT_END_URL}/event/${event_id}`, label: "See Event" });
+    await sendEmail(organiserEmail, firstName, "Event Created", emailMessage, { url: `${process.env.FRONT_END_URL}/event/${event_id}`, label: "See Event" });
 
     // Respond to the client
     res.status(201).json({ message: "Event created successfully", event_id });
@@ -277,7 +277,7 @@ router.post("/confirm-event", authenticateToken, async (req, res) => {
     
       const eventUrl = `${process.env.FRONT_END_URL}/event/${event_id}`;
     
-      sendEmail(
+      await sendEmail(
         organiserEmail,
         organiserFirstName,
         "Event Confirmed",
@@ -306,7 +306,7 @@ router.post("/confirm-event", authenticateToken, async (req, res) => {
       attendeeRows.forEach(({ email, username }) => {
         const firstName = username.split(" ")[0];
     
-        sendEmail(
+        await sendEmail(
           email,
           firstName,
           "Event Confirmed",
@@ -381,7 +381,7 @@ router.post("/cancel-event", authenticateToken, (req, res) => {
 
       // Send email to organiser
       if (organiserEmail) {
-        sendEmail(
+        await sendEmail(
           organiserEmail,
           organiserFirstName,
           "Event Cancelled",
@@ -400,7 +400,7 @@ router.post("/cancel-event", authenticateToken, (req, res) => {
 
         attendeeRows.forEach(({ email, username }) => {
           const firstName = username.split(" ")[0];
-          sendEmail(
+          await sendEmail(
             email,
             firstName,
             "Event Cancelled",
@@ -603,7 +603,7 @@ router.post("/migrate-event", authenticateToken, async (req, res) => {
           const message = `Your event "${title}" has been migrated. View it using the button below.`;
 
           // Send email to organiser
-          sendEmail(organiserEmail, organiserFirstName, "Event Migrated", message, {
+          await sendEmail(organiserEmail, organiserFirstName, "Event Migrated", message, {
               url: `${process.env.FRONT_END_URL}/event/${newEventId}`,
               label: "See Event",
           });
@@ -622,7 +622,7 @@ router.post("/migrate-event", authenticateToken, async (req, res) => {
 
               attendeeRows.forEach(({ email, username }) => {
                   const firstName = username.split(" ")[0];
-                  sendEmail(email, firstName, "Event Migrated", attendeeMessage, {
+                  await sendEmail(email, firstName, "Event Migrated", attendeeMessage, {
                       url: `${process.env.FRONT_END_URL}/event/${newEventId}`,
                       label: "See Event",
                   });
@@ -722,7 +722,7 @@ router.delete("/delete-event", authenticateToken, async (req, res) => {
         const emailMessage = `Your event "${title}" has been deleted successfully.`;
 
         // Call the sendEmail function
-        sendEmail(organiserEmail, firstName, "Event Created", emailMessage);
+        await sendEmail(organiserEmail, firstName, "Event Created", emailMessage);
     });
 
 
