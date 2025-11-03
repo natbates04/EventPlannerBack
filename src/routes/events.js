@@ -69,7 +69,7 @@ router.post("/create-event", (req, res) => {
       return res.status(400).json({ message: "Invalid event_id format" });
     }
 
-    onsole.log("Events's ID:", event_id);
+    console.log("Events's ID:", event_id);
 
     // Validate required fields
     if (!title || !earliest_date || !latest_date || !organiser_id) {
