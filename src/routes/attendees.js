@@ -323,7 +323,7 @@ router.post("/update-requests", authenticateToken, async (req, res) => {
     try {
       // Update the requests column in the event_details table
       const updateQuery = "UPDATE event_details SET requests = ? WHERE event_id = ?";
-      await db.promise().execute(updateQuery, [JSON.stringify(requests), event_id]);
+      await db.execute(updateQuery, [JSON.stringify(requests), event_id]);
   
       res.status(200).json({ success: true, message: "Requests updated successfully." });
     } catch (error) {
@@ -344,7 +344,7 @@ router.post("/promote-user", authenticateToken, async (req, res) => {
   
     try {
       // Fetch the attendees for the event
-      const [eventRows] = await db.promise().execute(
+      const [eventRows] = await db.execute(
         "SELECT attendees FROM event_details WHERE event_id = ?",
         [event_id]
       );
@@ -380,7 +380,7 @@ router.post("/promote-user", authenticateToken, async (req, res) => {
       }
   
       // Update the user's role to admin
-      const [updateResult] = await db.promise().execute(
+      const [updateResult] = await db.execute(
         "UPDATE user_details SET role = 'admin' WHERE user_id = ?",
         [user_id]
       );
@@ -410,7 +410,7 @@ router.post("/demote-user", authenticateToken, async (req, res) => {
   
     try {
       // Fetch the attendees for the event
-      const [eventRows] = await db.promise().execute(
+      const [eventRows] = await db.execute(
         "SELECT attendees FROM event_details WHERE event_id = ?",
         [event_id]
       );
@@ -446,7 +446,7 @@ router.post("/demote-user", authenticateToken, async (req, res) => {
       }
   
       // Update the user's role to attendee
-      const [updateResult] = await db.promise().execute(
+      const [updateResult] = await db.execute(
         "UPDATE user_details SET role = 'attendee' WHERE user_id = ?",
         [user_id]
       );
@@ -476,7 +476,7 @@ router.post("/kick-user", authenticateToken, async (req, res) => {
   
     try {
       // Fetch the event details
-      const [eventRows] = await db.promise().execute(
+      const [eventRows] = await db.execute(
         "SELECT attendees FROM event_details WHERE event_id = ?",
         [event_id]
       );
@@ -510,7 +510,7 @@ router.post("/kick-user", authenticateToken, async (req, res) => {
       attendees = attendees.filter((id) => id !== user_id);
   
       // Update the attendees column in the event_details table
-      await db.promise().execute(
+      await db.execute(
         "UPDATE event_details SET attendees = ? WHERE event_id = ?",
         [JSON.stringify(attendees), event_id]
       );
@@ -518,7 +518,7 @@ router.post("/kick-user", authenticateToken, async (req, res) => {
       console.log("[Kick User] Updated attendees list:", attendees);
   
       // Delete the user from the user_details table
-      const [deleteResult] = await db.promise().execute(
+      const [deleteResult] = await db.execute(
         "DELETE FROM user_details WHERE user_id = ?",
         [user_id]
       );

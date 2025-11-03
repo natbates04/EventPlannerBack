@@ -188,6 +188,7 @@ router.post("/create-user", async (req, res) => {
     }
 });
   
+
 router.post("/login", async (req, res) => {
   const { email, fingerprint, event_id } = req.body;
 
@@ -199,171 +200,125 @@ router.post("/login", async (req, res) => {
   }
 
   try {
-    console.log("[Login] Fetching event details for event_id:", event_id);
-
-    db.execute(
+    // 1. Fetch event details
+    const [eventRows] = await db.execute(
       "SELECT organiser_id, attendees, requests FROM event_details WHERE event_id = ?",
-      [event_id],
-      (err, rows) => {
-        if (err) {
-          console.error("[Login] Error fetching event details:", err);
-          return res.status(500).json({ message: "Server error" });
-        }
+      [event_id]
+    );
 
-        if (rows.length === 0) {
-          console.log("[Login] No event found for event_id:", event_id);
-          return res.status(404).json({ message: "Event not found" });
-        }
+    if (eventRows.length === 0) {
+      console.log("[Login] No event found for event_id:", event_id);
+      return res.status(404).json({ message: "Event not found" });
+    }
 
-        const event = rows[0];
-        console.log("[Login] Event details fetched successfully:", event);
+    const event = eventRows[0];
+    const organiserId = event.organiser_id;
 
-        const organiserId = event.organiser_id;
+    // Safely parse attendees and requests
+    let attendees = [];
+    try {
+      attendees = typeof event.attendees === "string" ? JSON.parse(event.attendees) : event.attendees || [];
+    } catch (parseError) {
+      console.warn("[Login] Failed to parse attendees as JSON. Defaulting to empty array.");
+      attendees = [];
+    }
 
-        // Safely parse attendees and requests
-        let attendees = [];
-        try {
-          attendees = typeof event.attendees === "string" ? JSON.parse(event.attendees) : event.attendees || [];
-        } catch (parseError) {
-          console.warn("[Login] Failed to parse attendees as JSON. Defaulting to empty array.");
-          attendees = [];
-        }
+    let requests = [];
+    try {
+      requests = typeof event.requests === "string" ? JSON.parse(event.requests) : event.requests || [];
+    } catch (parseError) {
+      console.warn("[Login] Failed to parse requests as JSON. Defaulting to empty array.");
+      requests = [];
+    }
 
-        let requests = [];
-        try {
-          requests = typeof event.requests === "string" ? JSON.parse(event.requests) : event.requests || [];
-        } catch (parseError) {
-          console.warn("[Login] Failed to parse requests as JSON. Defaulting to empty array.");
-          requests = [];
-        }
+    // 2. Check if the email is in the pending requests
+    const pendingRequest = requests.find(request => request.email === email);
+    if (pendingRequest) {
+      console.log("[Login] Email is in pending requests:", pendingRequest);
+      return res.status(200).json({
+        status: "pending",
+        message: "Your request is pending.",
+        request_details: pendingRequest,
+      });
+    }
 
-        console.log("[Login] Organiser ID:", organiserId);
-        console.log("[Login] Attendees list:", attendees);
-        console.log("[Login] Pending requests:", requests);
+    // 3. Check if the user exists in the user_details table
+    const [userRows] = await db.execute(
+      "SELECT * FROM user_details WHERE email = ?",
+      [email]
+    );
 
-        // Check if the email is in the pending requests
-        const pendingRequest = requests.find(request => request.email === email);
-        if (pendingRequest) {
-          console.log("[Login] Email is in pending requests:", pendingRequest);
+    if (userRows.length > 0) {
+      // Iterate over all userRows to check matches
+      for (const user of userRows) {
+        if (user.user_id === organiserId) {
+          // Update fingerprint for the organiser
+          await db.execute(
+            "UPDATE user_details SET fingerprint = ? WHERE user_id = ?",
+            [fingerprint, user.user_id]
+          );
+          updateEventLastUpdated(event_id);
+          const token = jwt.sign(
+            {
+              user_id: user.user_id,
+              email: user.email,
+              role: user.role,
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "1h" }
+          );
           return res.status(200).json({
-            status: "pending",
-            message: "Your request is pending.",
-            request_details: pendingRequest,
+            authorized: true,
+            message: "User authorized as organiser.",
+            token: token,
+            user_details: {
+              user_id: user.user_id,
+              email: user.email,
+              username: user.username,
+              role: user.role,
+              profile_pic: user.profile_pic,
+            },
           });
         }
 
-        // Check if the user exists in the user_details table
-        db.execute(
-          "SELECT * FROM user_details WHERE email = ?",
-          [email],
-          (userErr, userRows) => {
-            if (userErr) {
-              console.error("[Login] Error fetching user details:", userErr);
-              return res.status(500).json({ message: "Server error" });
-            }
-
-            if (userRows.length > 0) {
-              console.log("[Login] Multiple users found for email:", email);
-
-              // Iterate over all userRows to check matches
-              for (const user of userRows) {
-                console.log("[Login] Checking user:", user);
-
-                if (user.user_id === organiserId) {
-                  console.log("[Login] User is the organiser.");
-                  
-                  // Update fingerprint for the organiser
-                  db.execute(
-                    "UPDATE user_details SET fingerprint = ? WHERE user_id = ?",
-                    [fingerprint, user.user_id],
-                    (updateErr) => {
-                      if (updateErr) {
-                        console.error("[Login] Error updating fingerprint for organiser:", updateErr);
-                        return res.status(500).json({ message: "Error updating fingerprint" });
-                      }
-
-                      updateEventLastUpdated(event_id);
-                      const token = jwt.sign(
-                        {
-                          user_id: user.user_id,
-                          email: user.email,
-                          role: user.role,
-                        },
-                        process.env.JWT_SECRET,
-                        { expiresIn: "1h" } // expires in 1 hour
-                      );
-
-                      return res.status(200).json({
-                        authorized: true,
-                        message: "User authorized as organiser.",
-                        token: token,
-                        user_details: {
-                          user_id: user.user_id,
-                          email: user.email,
-                          username: user.username,
-                          role: user.role,
-                          profile_pic: user.profile_pic,
-                        },
-                      });
-                    }
-                  );
-                  return; // Exit the loop once the organiser is handled
-                }
-
-                if (attendees.includes(user.user_id)) {
-                  console.log("[Login] User is an attendee.");
-                  
-                  // Update fingerprint for the attendee
-                  db.execute(
-                    "UPDATE user_details SET fingerprint = ? WHERE user_id = ?",
-                    [fingerprint, user.user_id],
-                    (updateErr) => {
-                      if (updateErr) {
-                        console.error("[Login] Error updating fingerprint for attendee:", updateErr);
-                        return res.status(500).json({ message: "Error updating fingerprint" });
-                      }
-                      updateEventLastUpdated(event_id);
-                      
-                      updateEventLastUpdated(event_id);
-                      const token = jwt.sign(
-                        {
-                          user_id: user.user_id,
-                          email: user.email,
-                          role: user.role,
-                        },
-                        process.env.JWT_SECRET,
-                        { expiresIn: "1h" } // expires in 1 hour
-                      );
-
-                      return res.status(200).json({
-                        authorized: true,
-                        message: "User authorized as attendee.",
-                        token: token,
-                        user_details: {
-                          user_id: user.user_id,
-                          email: user.email,
-                          username: user.username,
-                          role: user.role,
-                          profile_pic: user.profile_pic,
-                        },
-                      });
-                    }
-                  );
-                  return; // Exit the loop once the attendee is handled
-                }
-              }
-            }
-
-            // If the user is not an organiser or attendee, return false
-            console.log("[Login] Email not authorized, not an organiser or attendee:", email);
-            return res.status(200).json({
-              authorized: false,
-              message: "User not authorized or does not exist.",
-            });
-          }
-        );
+        if (attendees.includes(user.user_id)) {
+          // Update fingerprint for the attendee
+          await db.execute(
+            "UPDATE user_details SET fingerprint = ? WHERE user_id = ?",
+            [fingerprint, user.user_id]
+          );
+          updateEventLastUpdated(event_id);
+          const token = jwt.sign(
+            {
+              user_id: user.user_id,
+              email: user.email,
+              role: user.role,
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "1h" }
+          );
+          return res.status(200).json({
+            authorized: true,
+            message: "User authorized as attendee.",
+            token: token,
+            user_details: {
+              user_id: user.user_id,
+              email: user.email,
+              username: user.username,
+              role: user.role,
+              profile_pic: user.profile_pic,
+            },
+          });
+        }
       }
-    );
+    }
+
+    // If the user is not an organiser or attendee, return false
+    console.log("[Login] Email not authorized, not an organiser or attendee:", email);
+    return res.status(200).json({
+      authorized: false,
+      message: "User not authorized or does not exist.",
+    });
   } catch (error) {
     console.error("[Login] Error during login:", error);
     return res.status(500).json({ message: "Server error" });

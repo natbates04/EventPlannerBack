@@ -10,7 +10,7 @@ router.get("/fetch-to-do", authenticateToken, async (req, res) => {
     if (!event_id) return res.status(400).json({ message: "Event ID is required" });
 
     try {
-        const [rows] = await db.promise().execute(
+            const [rows] = await db.execute(
             "SELECT to_do FROM event_details WHERE event_id = ?",
             [event_id]
         );
@@ -35,7 +35,7 @@ router.post("/add-to-do", authenticateToken, async (req, res) => {
 
     try {
         // Fetch the current to_do list from the database
-        const [rows] = await db.promise().execute(
+            const [rows] = await db.execute(
             "SELECT to_do FROM event_details WHERE event_id = ?",
             [event_id]
         );
@@ -55,7 +55,7 @@ router.post("/add-to-do", authenticateToken, async (req, res) => {
         toDoList.to_do.push(newTask);
 
         // Update the to_do list in the database
-        await db.promise().execute(
+            await db.execute(
             "UPDATE event_details SET to_do = ? WHERE event_id = ?",
             [JSON.stringify(toDoList), event_id]
         );
@@ -77,7 +77,7 @@ router.post("/move-to-done", authenticateToken, async (req, res) => {
     console.log("MOVING TO DONE FOR EVENT ID:", event_id, "AND TASK ID:", task_id);
 
     try {
-        const [rows] = await db.promise().execute(
+        const [rows] = await db.execute(
             "SELECT to_do FROM event_details WHERE event_id = ?",
             [event_id]
         );
@@ -94,7 +94,7 @@ router.post("/move-to-done", authenticateToken, async (req, res) => {
         const completedTask = toDoList.to_do.splice(taskIndex, 1)[0];
         toDoList.done.push(completedTask);
 
-        await db.promise().execute(
+        await db.execute(
             "UPDATE event_details SET to_do = ? WHERE event_id = ?",
             [JSON.stringify(toDoList), event_id]
         );
@@ -113,7 +113,7 @@ router.post("/move-to-do", authenticateToken, async (req, res) => {
     }
 
     try {
-        const [rows] = await db.promise().execute(
+        const [rows] = await db.execute(
             "SELECT to_do FROM event_details WHERE event_id = ?",
             [event_id]
         );
@@ -128,7 +128,7 @@ router.post("/move-to-do", authenticateToken, async (req, res) => {
         const movedTask = toDoList.done.splice(taskIndex, 1)[0];
         toDoList.to_do.push(movedTask);
 
-        await db.promise().execute(
+        await db.execute(
             "UPDATE event_details SET to_do = ? WHERE event_id = ?",
             [JSON.stringify(toDoList), event_id]
         );
@@ -147,7 +147,7 @@ router.delete("/delete-to-do", authenticateToken, async (req, res) => {
     }
 
     try {
-        const [rows] = await db.promise().execute(
+        const [rows] = await db.execute(
             "SELECT to_do FROM event_details WHERE event_id = ?",
             [event_id]
         );
@@ -160,7 +160,7 @@ router.delete("/delete-to-do", authenticateToken, async (req, res) => {
         toDoList.to_do = toDoList.to_do.filter(task => task.task_id !== task_id);
         toDoList.done = toDoList.done.filter(task => task.task_id !== task_id);
 
-        await db.promise().execute(
+        await db.execute(
             "UPDATE event_details SET to_do = ? WHERE event_id = ?",
             [JSON.stringify(toDoList), event_id]
         );

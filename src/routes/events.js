@@ -139,23 +139,23 @@ router.post("/create-event", async (req, res) => {
 
 // PRIVATE API ENDPOINTS
 
+
 router.get("/fetch-event/:event_id", authenticateToken, async (req, res) => {
-  const { event_id } = req.params; // Get event_id from the URL path
-
+  const { event_id } = req.params;
   console.log("Fetching event: " + event_id);
-
-  db.execute("SELECT title, description, status, chosen_dates, cancellation_reason, location, attendees, organiser_id FROM event_details WHERE event_id = ?", [event_id], (err, rows) => {
-      if (err) {
-          console.error("Error fetching event:", err);
-          return res.status(500).json({ message: "Server error" });
-      }
-
-      if (rows.length === 0) {
-          return res.status(404).json({ message: "Event not found" });
-      }
-
-      res.json(rows[0]); // Return the event details
-  });
+  try {
+    const [rows] = await db.execute(
+      "SELECT title, description, status, chosen_dates, cancellation_reason, location, attendees, organiser_id FROM event_details WHERE event_id = ?",
+      [event_id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("Error fetching event:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
 });
 
 router.post("/update-event", authenticateToken, async (req, res) => {
@@ -640,28 +640,26 @@ router.post("/migrate-event", authenticateToken, async (req, res) => {
   }
 });
 
+
 router.get("/fetch-event-status", authenticateToken, async (req, res) => {
   const event_id = req.query.event_id;
-
   if (!event_id) {
     return res.status(400).json({ error: "Missing event_id" });
   }
-
-  const query = "SELECT status FROM event_details WHERE event_id = ?";
-
-  db.execute(query, [event_id], (err, results) => {
-    if (err) {
-      console.error("Error fetching event status:", err);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-
+  try {
+    const [results] = await db.execute(
+      "SELECT status FROM event_details WHERE event_id = ?",
+      [event_id]
+    );
     if (results.length === 0) {
       return res.status(404).json({ error: "Event not found" });
     }
-
     const { status } = results[0];
     return res.status(200).json({ status });
-  });
+  } catch (err) {
+    console.error("Error fetching event status:", err);
+    return res.status(500).json({ error: "Internal server error", details: err.message });
+  }
 });
 
 router.delete("/delete-event", authenticateToken, async (req, res) => {
