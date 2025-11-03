@@ -21,6 +21,9 @@ const fonts = {
 
 // Function to send email
 const sendEmail = async (to, firstName, subject, innerHtmlContent, link) => {
+  
+  console.log("ATTEMPTING TO SEND MAIL")
+  
   try {
     // Read image as buffer
     const logoPath =  "src/services/mail-attachments/logo.png";

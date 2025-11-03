@@ -113,6 +113,7 @@ router.get("/fetch-availability/:event_id", authenticateToken, async (req, res) 
 });
 
 
+
 router.get("/fetch-user-availability/:user_id", authenticateToken, async (req, res) => {
   const { user_id } = req.params;
   console.log("Received request to fetch availability for user_id:", user_id);
@@ -128,7 +129,8 @@ router.get("/fetch-user-availability/:user_id", authenticateToken, async (req, r
     );
 
     if (rows.length === 0) {
-      return res.status(404).json({ message: "User not found or no availability data" });
+      // User not found, but return empty object with 200
+      return res.status(200).json({});
     }
 
     const availabilityData = rows[0].availability;
