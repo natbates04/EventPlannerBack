@@ -43,6 +43,9 @@ router.get("/fetch-event-title/:event_id", async (req, res) => {
 });
 
 router.post("/create-event", (req, res) => {
+
+  console.log("CREATE EVENT ROUTE REACHED");
+
   try {
     let {
       event_id,
