@@ -12,7 +12,7 @@ router.get("/fetch-links", authenticateToken, async (req, res) => {
 
   try {
       // Retrieve the event details from the database
-      const [rows] = await db.promise().execute(
+  const [rows] = await db.execute(
           "SELECT links FROM event_details WHERE event_id = ?",
           [event_id]
       );
@@ -39,7 +39,7 @@ router.post("/add-link", authenticateToken, async (req, res) => {
   
     try {
       // Check if the event exists in the event_details table
-      const [rows] = await db.promise().execute(
+  const [rows] = await db.execute(
         "SELECT links FROM event_details WHERE event_id = ?",
         [event_id]
       );
@@ -65,7 +65,7 @@ router.post("/add-link", authenticateToken, async (req, res) => {
       links.push(newLinkObject);
   
       // Save the updated links JSON back into the database
-      await db.promise().execute(
+  await db.execute(
         "UPDATE event_details SET links = ? WHERE event_id = ?",
         [JSON.stringify(links), event_id]
       );
@@ -87,7 +87,7 @@ router.delete("/delete-link", authenticateToken, async (req, res) => {
   
     try {
       // Retrieve the event details from the database
-      const [rows] = await db.promise().execute(
+  const [rows] = await db.execute(
         "SELECT links FROM event_details WHERE event_id = ?",
         [event_id]
       );
@@ -107,7 +107,7 @@ router.delete("/delete-link", authenticateToken, async (req, res) => {
       }
   
       // Update the links array in the database
-      await db.promise().execute(
+  await db.execute(
         "UPDATE event_details SET links = ? WHERE event_id = ?",
         [JSON.stringify(updatedLinks), event_id]
       );

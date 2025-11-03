@@ -23,7 +23,7 @@ router.post("/update-event", authenticateToken, async (req, res) => {
   
     try {
       // Query to check if the event exists
-      const [rows] = await db.promise().execute(
+  const [rows] = await db.execute(
         "SELECT * FROM event_details WHERE event_id = ?",
         [event_id]
       );
@@ -33,7 +33,7 @@ router.post("/update-event", authenticateToken, async (req, res) => {
       }
   
       // Update event in the database with new fields (title, description, and other details)
-      await db.promise().execute(
+  await db.execute(
         `UPDATE event_details SET
           title = ?, 
           description = ?, 
@@ -73,7 +73,7 @@ router.get("/fetch-settings", authenticateToken, async (req, res) => {
 
   try {
     // Query to fetch event details
-    const [rows] = await db.promise().execute(
+  const [rows] = await db.execute(
       "SELECT title, description, earliest_date, latest_date, duration FROM event_details WHERE event_id = ?",
       [event_id]
     );

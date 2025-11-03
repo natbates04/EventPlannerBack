@@ -22,7 +22,7 @@ router.post("/request-access", async (req, res) => {
 
   try {
     // Fetch event details to check the requests column
-    const [rows] = await db.promise().execute(
+  const [rows] = await db.execute(
       "SELECT requests, title, organiser_id FROM event_details WHERE event_id = ?",
       [event_id]
     );
@@ -58,7 +58,7 @@ router.post("/request-access", async (req, res) => {
 
     // Update the requests column with the new list
     const updateQuery = "UPDATE event_details SET requests = ? WHERE event_id = ?";
-    await db.promise().execute(updateQuery, [JSON.stringify(requests), event_id]);
+  await db.execute(updateQuery, [JSON.stringify(requests), event_id]);
 
     console.log("[Request Access] Request added successfully for event_id:", event_id);
 
@@ -73,7 +73,7 @@ router.post("/request-access", async (req, res) => {
     //   }
     // );    -
 
-    const [organiserRows] = await db.promise().execute(
+  const [organiserRows] = await db.execute(
       "SELECT username, email FROM user_details WHERE user_id = ?",
       [organiserId]
     );
@@ -113,7 +113,7 @@ router.post("/notifications/send-request-accepted-email", authenticateToken, asy
 
   try {
       // Get event title
-      const [eventResult] = await db.promise().execute(
+  const [eventResult] = await db.execute(
           "SELECT title FROM event_details WHERE event_id = ?",
           [event_id]
       );
@@ -270,7 +270,7 @@ router.post("/reject-request", authenticateToken, async (req, res) => {
   
     try {
       // Fetch the event details
-      const [rows] = await db.promise().execute(
+  const [rows] = await db.execute(
         "SELECT * FROM event_details WHERE event_id = ?",
         [event_id]
       );
@@ -303,7 +303,7 @@ router.post("/reject-request", authenticateToken, async (req, res) => {
   
       // Update the event's requests in the database
       const updateQuery = "UPDATE event_details SET requests = ? WHERE event_id = ?";
-      await db.promise().execute(updateQuery, [JSON.stringify(requests), event_id]);
+  await db.execute(updateQuery, [JSON.stringify(requests), event_id]);
   
       return res.status(200).json({ message: "Request rejected successfully" });
     } catch (error) {

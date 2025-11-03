@@ -14,7 +14,7 @@ router.get("/fetch-polls", authenticateToken, async (req, res) => {
 
     try {
         // Retrieve the event details from the database
-        const [rows] = await db.promise().execute(
+    const [rows] = await db.execute(
             "SELECT polls FROM event_details WHERE event_id = ?",
             [event_id]
         );
@@ -46,7 +46,7 @@ router.post("/create-poll", authenticateToken, async (req, res) => {
     }
 
     try {
-        const [rows] = await db.promise().execute(
+    const [rows] = await db.execute(
         "SELECT polls FROM event_details WHERE event_id = ?",
         [event_id]
         );
@@ -75,7 +75,7 @@ router.post("/create-poll", authenticateToken, async (req, res) => {
         });
 
         // Save the updated polls JSON
-        await db.promise().execute(
+    await db.execute(
         "UPDATE event_details SET polls = ? WHERE event_id = ?",
         [JSON.stringify(polls), event_id]
         );
@@ -95,7 +95,7 @@ router.post("/cast-vote", authenticateToken, async (req, res) => {
     }
 
     try {
-        const [rows] = await db.promise().execute(
+    const [rows] = await db.execute(
         "SELECT polls FROM event_details WHERE event_id = ?",
         [event_id]
         );
@@ -136,7 +136,7 @@ router.post("/cast-vote", authenticateToken, async (req, res) => {
         }
 
         // Update poll data in the database
-        await db.promise().execute(
+    await db.execute(
         "UPDATE event_details SET polls = ? WHERE event_id = ?",
         [JSON.stringify(polls), event_id]
         );
@@ -160,7 +160,7 @@ router.post("/delete-poll", authenticateToken, async (req, res) => {
     }
 
     try {
-        const [rows] = await db.promise().execute(
+    const [rows] = await db.execute(
         "SELECT polls FROM event_details WHERE event_id = ?",
         [event_id]
         );
@@ -184,7 +184,7 @@ router.post("/delete-poll", authenticateToken, async (req, res) => {
         delete polls[poll_id];
 
         // Update the database
-        await db.promise().execute(
+    await db.execute(
         "UPDATE event_details SET polls = ? WHERE event_id = ?",
         [JSON.stringify(polls), event_id]
         );
@@ -205,7 +205,7 @@ router.post("/remove-vote", authenticateToken, async (req, res) => {
     }
 
     try {
-        const [rows] = await db.promise().execute(
+    const [rows] = await db.execute(
             "SELECT polls FROM event_details WHERE event_id = ?",
             [event_id]
         );
@@ -237,7 +237,7 @@ router.post("/remove-vote", authenticateToken, async (req, res) => {
         poll.options[selected_option] = poll.options[selected_option].filter(voter => voter !== user_id);
 
         // Update poll data in the database
-        await db.promise().execute(
+    await db.execute(
             "UPDATE event_details SET polls = ? WHERE event_id = ?",
             [JSON.stringify(polls), event_id]
         );

@@ -229,7 +229,7 @@ function DeleteOldEvents() {
                 console.log(`🗑️ Deleting "${event.title}"...`);
                 try {
                 // Step 1: Get organiser_id, attendees list, and event title
-                const [eventRows] = await db.promise().execute(
+                const [eventRows] = await db.execute(
                     "SELECT organiser_id, attendees, title FROM event_details WHERE event_id = ?",
                     [event.event_id]
                 );
@@ -259,7 +259,7 @@ function DeleteOldEvents() {
                 }
             
                 // Step 3: Send deletion confirmation email to organiser
-                const [emailRows] = await db.promise().execute(
+                const [emailRows] = await db.execute(
                     "SELECT email, username FROM user_details WHERE user_id = ?",
                     [organiser_id]
                 );
@@ -273,14 +273,14 @@ function DeleteOldEvents() {
                 }
             
                 // Step 4: Delete the event
-                await db.promise().execute(
+                await db.execute(
                     "DELETE FROM event_details WHERE event_id = ?",
                     [event.event_id]
                 );
             
                 // Step 5: Delete users from user_details
                 if (userIdsToDelete.length > 0) {
-                    await db.promise().execute(
+                    await db.execute(
                     `DELETE FROM user_details WHERE user_id IN (${userIdsToDelete.map(() => '?').join(',')})`,
                     userIdsToDelete
                     );
@@ -296,7 +296,7 @@ function DeleteOldEvents() {
             // Send warning email
                 try {
                     // Fetch organiser info
-                    const [organiserResult] = await db.promise().query(
+                    const [organiserResult] = await db.query(
                         `SELECT email, username FROM user_details WHERE user_id = ?`,
                         [event.organiser_id]
                     );
@@ -331,7 +331,7 @@ function DeleteOldEvents() {
                     }
                 
                     // Update event details to mark that the deletion warning has been sent
-                    await db.promise().query(
+                    await db.query(
                         `UPDATE event_details SET deleted_warning_sent = true WHERE event_id = ?`,
                         [event.event_id]
                     );

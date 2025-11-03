@@ -14,7 +14,7 @@ router.get('/fetch-comments', authenticateToken, async (req, res) => {
 
     try {
         // Retrieve the existing comments for the event from the database
-        const [rows] = await db.promise().execute(
+  const [rows] = await db.execute(
             'SELECT comments FROM event_details WHERE event_id = ?',
             [event_id]
         );
@@ -58,7 +58,7 @@ router.post('/add-comment', authenticateToken, async (req, res) => {
   
     try {
       // Retrieve the existing comments for the event from the database
-      const [rows] = await db.promise().execute(
+  const [rows] = await db.execute(
         'SELECT comments FROM event_details WHERE event_id = ?',
         [event_id]
       );
@@ -76,7 +76,7 @@ router.post('/add-comment', authenticateToken, async (req, res) => {
   
       // Update the comments column in the database
       const updateQuery = 'UPDATE event_details SET comments = ? WHERE event_id = ?';
-      await db.promise().execute(updateQuery, [JSON.stringify(existingComments), event_id]);
+  await db.execute(updateQuery, [JSON.stringify(existingComments), event_id]);
   
       // Return success response
       res.status(200).json({ message: 'Comment added successfully', comment });
@@ -94,7 +94,7 @@ router.post("/delete-comment", authenticateToken, async (req, res) => {
   
     try {
       // Fetch existing comments from MySQL
-      const [rows] = await db.promise().execute(
+  const [rows] = await db.execute(
         "SELECT comments FROM event_details WHERE event_id = ?",
         [event_id]
       );
@@ -117,7 +117,7 @@ router.post("/delete-comment", authenticateToken, async (req, res) => {
       console.log("Filtered comments after deletion:", filteredComments);
   
       // Update the JSON column in MySQL
-      await db.promise().execute(
+  await db.execute(
         "UPDATE event_details SET comments = ? WHERE event_id = ?",
         [JSON.stringify(filteredComments), event_id]
       );

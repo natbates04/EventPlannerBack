@@ -17,7 +17,7 @@ router.get("/fetch-calendar", authenticateToken, async (req, res) => {
 
   try {
       // Retrieve event details from the database
-      const [rows] = await db.promise().execute(
+  const [rows] = await db.execute(
           "SELECT earliest_date, latest_date, duration, chosen_dates FROM event_details WHERE event_id = ?",
           [event_id]
       );
@@ -52,7 +52,7 @@ router.get("/fetch-availability/:event_id", authenticateToken, async (req, res) 
 
   try {
       // 🔹 Step 1: Fetch organizer ID & attendee IDs from event_details
-      const [eventRows] = await db.promise().execute(
+  const [eventRows] = await db.execute(
           "SELECT organiser_id, attendees FROM event_details WHERE event_id = ?",
           [event_id]
       );
@@ -78,7 +78,7 @@ router.get("/fetch-availability/:event_id", authenticateToken, async (req, res) 
       }
 
       // 🔹 Step 2: Fetch user details and availability for all users
-      const [userRows] = await db.promise().execute(
+  const [userRows] = await db.execute(
           `SELECT user_id, username, role, availability, profile_pic, created_at FROM user_details WHERE user_id IN (${userIds.map(() => "?").join(",")})`,
           userIds
       );

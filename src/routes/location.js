@@ -13,7 +13,7 @@ router.get("/fetch-location", authenticateToken, async (req, res) => {
     }
 
     try {
-        const [eventRows] = await db.promise().execute(
+    const [eventRows] = await db.execute(
             "SELECT location FROM event_details WHERE event_id = ?",
             [event_id]
         );
@@ -62,7 +62,7 @@ router.put("/update-location", authenticateToken, async (req, res) => {
         );
         
         // Check the result
-        const [updateResult] = await db.promise().execute(
+    const [updateResult] = await db.execute(
             `UPDATE event_details SET location = ? WHERE event_id = ?`,
         [locationObject, event_id]
         );
