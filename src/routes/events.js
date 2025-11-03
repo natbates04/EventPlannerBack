@@ -126,7 +126,12 @@ router.post("/create-event", async (req, res) => {
     const emailMessage = `Your event "${title}" has been created successfully. You can view it by pressing the button below.`;
 
     // Call the sendEmail function
-    sendEmail(organiserEmail, firstName, "Event Created", emailMessage, { url: `${process.env.FRONT_END_URL}/event/${event_id}`, label: "See Event" });
+    try {
+      const info = await sendEmail(organiserEmail, firstName, "Event Created", emailMessage, { url: `${process.env.FRONT_END_URL}/event/${event_id}`, label: "See Event" });
+      console.log("Email send result:", info);
+    } catch (emailError) {
+      console.error("Error sending event creation email:", emailError);
+    }
 
     // Respond to the client
     res.status(201).json({ message: "Event created successfully", event_id });
