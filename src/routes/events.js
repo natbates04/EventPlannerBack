@@ -42,10 +42,9 @@ router.get("/fetch-event-title/:event_id", async (req, res) => {
   });
 });
 
-router.post("/create-event", (req, res) => {
 
+router.post("/create-event", async (req, res) => {
   console.log("CREATE EVENT ROUTE REACHED");
-
   try {
     let {
       event_id,
@@ -91,7 +90,8 @@ router.post("/create-event", (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    db.execute(
+    // Insert event
+    const [result] = await db.execute(
       query,
       [
         event_id,
@@ -104,59 +104,39 @@ router.post("/create-event", (req, res) => {
         reminder_time,
         organiser_id,
         status,
-      ],
-      (err, result) => {
-        if (err) {
-          console.error("Error creating event:", err);
-          // Always send a response, even on error
-          return res.status(500).json({ message: "Server error", error: err.message });
-        }
-
-        console.log("Event created successfully with ID:", event_id);
-
-        // Fetch the organiser's email
-        db.execute(
-          "SELECT email, username FROM user_details WHERE user_id = ?",
-          [organiser_id],
-          (emailErr, emailResult) => {
-            if (emailErr) {
-              console.error("Error fetching organiser's email:", emailErr);
-              return res
-                .status(500)
-                .json({ message: "Failed to fetch organiser's email" });
-            }
-
-            if (emailResult.length === 0) {
-              console.error("Organiser email not found for organiser_id:", organiser_id);
-              return res
-                .status(404)
-                .json({ message: "Organiser not found in user_details" });
-            }
-
-            const { email: organiserEmail, username: organiserName } = emailResult[0];
-            console.log("Organiser's email:", organiserEmail);
-
-            const firstName = organiserName.split(" ")[0] || organiserName;
-
-            // Prepare the message
-            const emailMessage = `Your event "${title}" has been created successfully. You can view it by pressing the button below.`;
-
-            // Call the sendEmail function
-            sendEmail(organiserEmail, firstName, "Event Created", emailMessage, { url: `${process.env.FRONT_END_URL}/event/${event_id}`, label: "See Event" });
-
-            // Respond to the client
-            res
-              .status(201)
-              .json({ message: "Event created successfully", event_id });
-          }
-        );
-      }
+      ]
     );
+
+    console.log("Event created successfully with ID:", event_id);
+
+    // Fetch the organiser's email
+    const [emailResult] = await db.execute(
+      "SELECT email, username FROM user_details WHERE user_id = ?",
+      [organiser_id]
+    );
+
+    if (emailResult.length === 0) {
+      console.error("Organiser email not found for organiser_id:", organiser_id);
+      return res.status(404).json({ message: "Organiser not found in user_details" });
+    }
+
+    const { email: organiserEmail, username: organiserName } = emailResult[0];
+    console.log("Organiser's email:", organiserEmail);
+
+    const firstName = organiserName.split(" ")[0] || organiserName;
+
+    // Prepare the message
+    const emailMessage = `Your event "${title}" has been created successfully. You can view it by pressing the button below.`;
+
+    // Call the sendEmail function
+    sendEmail(organiserEmail, firstName, "Event Created", emailMessage, { url: `${process.env.FRONT_END_URL}/event/${event_id}`, label: "See Event" });
+
+    // Respond to the client
+    res.status(201).json({ message: "Event created successfully", event_id });
   } catch (error) {
     console.error("Unhandled error in /create-event:", error);
     res.status(500).json({ message: "Unhandled server error", error: error.message });
   }
-
   console.log("STUFF HAS FINISHED RUNNING");
 });
 
